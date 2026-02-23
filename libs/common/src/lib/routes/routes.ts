@@ -16,6 +16,11 @@ if (typeof window !== 'undefined') {
 }
 
 export const internalRoutes: Record<string, InternalRoute> = {
+  aiAgent: {
+    path: 'ai-agent',
+    routerLink: ['/ai-agent'],
+    title: $localize`AI Agent`
+  },
   account: {
     path: 'account',
     routerLink: ['/account'],

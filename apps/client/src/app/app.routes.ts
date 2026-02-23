@@ -6,6 +6,15 @@ import { AuthGuard } from './core/auth.guard';
 
 export const routes: Routes = [
   {
+    canActivate: [AuthGuard],
+    loadComponent: () =>
+      import('./pages/ai-agent/ai-agent-page.component').then(
+        (c) => c.GfAiAgentPageComponent
+      ),
+    path: internalRoutes.aiAgent.path,
+    title: internalRoutes.aiAgent.title
+  },
+  {
     path: publicRoutes.about.path,
     loadChildren: () =>
       import('./pages/about/about-page.routes').then((m) => m.routes)

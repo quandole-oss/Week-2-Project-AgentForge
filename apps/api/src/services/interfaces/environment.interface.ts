@@ -16,6 +16,7 @@ export interface Environment extends CleanedEnvAccessors {
   DATA_SOURCE_IMPORT: string;
   DATA_SOURCES: string[];
   DATA_SOURCES_GHOSTFOLIO_DATA_PROVIDER: string[];
+  ENABLE_FEATURE_AI_AGENT: boolean;
   ENABLE_FEATURE_AUTH_GOOGLE: boolean;
   ENABLE_FEATURE_AUTH_OIDC: boolean;
   ENABLE_FEATURE_AUTH_TOKEN: boolean;

@@ -25,6 +25,8 @@ import {
   AccountsResponse,
   ActivitiesResponse,
   ActivityResponse,
+  AiAgentMessage,
+  AiAgentResponse,
   AiPromptResponse,
   ApiKeyResponse,
   AssetProfileIdentifier,
@@ -667,6 +669,19 @@ export class DataService {
 
     return this.http.get<AiPromptResponse>(`/api/v1/ai/prompt/${mode}`, {
       params
+    });
+  }
+
+  public postAiAgentChat({
+    conversationHistory,
+    message
+  }: {
+    conversationHistory?: AiAgentMessage[];
+    message: string;
+  }) {
+    return this.http.post<AiAgentResponse>('/api/v1/ai-agent/chat', {
+      conversationHistory,
+      message
     });
   }
 

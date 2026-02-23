@@ -109,6 +109,7 @@ export class GfHeaderComponent implements OnChanges {
   public hasPermissionForAuthToken: boolean;
   public hasPermissionForSubscription: boolean;
   public hasPermissionToAccessAdminControl: boolean;
+  public hasPermissionToAccessAiAgent: boolean;
   public hasPermissionToAccessAssistant: boolean;
   public hasPermissionToAccessFearAndGreedIndex: boolean;
   public hasPermissionToCreateUser: boolean;
@@ -122,6 +123,7 @@ export class GfHeaderComponent implements OnChanges {
   public routeResources = publicRoutes.resources.path;
   public routerLinkAbout = publicRoutes.about.routerLink;
   public routerLinkAccount = internalRoutes.account.routerLink;
+  public routerLinkAiAgent = internalRoutes.aiAgent.routerLink;
   public routerLinkAccounts = internalRoutes.accounts.routerLink;
   public routerLinkAdminControl = internalRoutes.adminControl.routerLink;
   public routerLinkFeatures = publicRoutes.features.routerLink;
@@ -189,6 +191,11 @@ export class GfHeaderComponent implements OnChanges {
     this.hasPermissionToAccessAdminControl = hasPermission(
       this.user?.permissions,
       permissions.accessAdminControl
+    );
+
+    this.hasPermissionToAccessAiAgent = hasPermission(
+      this.user?.permissions,
+      permissions.accessAiAgent
     );
 
     this.hasPermissionToAccessAssistant = hasPermission(

@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## AgentForge AI Agent - 2026-02-23
+
+### Added
+
+- AI Agent chat endpoint (`POST /api/v1/ai-agent/chat`) with JWT auth + permission guard
+- `ENABLE_FEATURE_AI_AGENT` feature flag (default: false)
+- `accessAiAgent` permission for ADMIN and USER roles
+- `PROPERTY_API_KEY_ANTHROPIC` config key for API key storage via PropertyService
+- `AiAgentResponse` and `AiAgentMessage` shared interfaces
+- `AiAgentModule` with controller, service, DTO, and tool infrastructure
+- `portfolio_summary` tool — portfolio holdings, allocation, and summary via PortfolioService
+- `transaction_analyzer` tool — activity counts, fees, and date range analysis via OrderService
+- `market_context` tool — current prices and market state via DataProviderService
+- `tax_estimator` tool — FIFO-based capital gains estimation
+- `compliance_checker` tool — concentration, diversification, and currency exposure checks
+- `allocation_optimizer` tool — target allocation drift and rebalance suggestions
+- Verification layer with disclaimer enforcement, numerical accuracy, hallucination detection, and confidence scoring
+- Structured logging and telemetry service with trace IDs
+- Multi-step reasoning support via Vercel AI SDK `maxSteps: 5`
+- Angular chat component at `/ai-agent` route with markdown rendering and tool call details
+- Backend API method `postAiAgentChat()` in DataService
+
+### Dependencies
+
+- Added `@ai-sdk/anthropic` for Anthropic Claude integration
+
 ## 2.243.0 - 2026-02-23
 
 ### Changed

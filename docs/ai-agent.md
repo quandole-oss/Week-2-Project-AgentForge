@@ -1,0 +1,193 @@
+# AgentForge: AI Agent for Ghostfolio
+
+## Overview
+
+AgentForge is an AI-powered financial portfolio assistant built inside Ghostfolio. It answers natural language questions about portfolio holdings, transactions, taxes, compliance, and market data by calling Ghostfolio's existing services directly via NestJS dependency injection.
+
+**Key properties:**
+- **Read-only**: Never executes trades or modifies portfolio data
+- **Verified**: Includes disclaimer enforcement, numerical accuracy checks, and hallucination detection
+- **Grounded**: Only references data returned by tools — never fabricates numbers
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────┐
+│                   Angular Frontend                   │
+│              /ai-agent chat component                │
+│    ┌──────────────────────────────────────────┐     │
+│    │  GfAiAgentPageComponent                  │     │
+│    │  - Message list with markdown rendering  │     │
+│    │  - Collapsible tool call details         │     │
+│    │  - Disclaimer always visible             │     │
+│    │  - Conversation history management       │     │
+│    └──────────────────────────────────────────┘     │
+└─────────────────────┬───────────────────────────────┘
+                      │ POST /api/v1/ai-agent/chat
+                      ▼
+┌─────────────────────────────────────────────────────┐
+│                  NestJS Backend                      │
+│                                                      │
+│  ┌──────────────────────────────────────────────┐   │
+│  │  AiAgentController                           │   │
+│  │  - JWT + HasPermissionGuard                  │   │
+│  │  - Feature flag check                        │   │
+│  └──────────────┬───────────────────────────────┘   │
+│                 │                                     │
+│  ┌──────────────▼───────────────────────────────┐   │
+│  │  AiAgentService (orchestrator)               │   │
+│  │  - Vercel AI SDK generateText()              │   │
+│  │  - Anthropic Claude provider                 │   │
+│  │  - Tool registration + execution             │   │
+│  │  - maxSteps: 5 for multi-tool chaining       │   │
+│  └──────────────┬───────────────────────────────┘   │
+│                 │                                     │
+│  ┌──────────────▼───────────────────────────────┐   │
+│  │  Tools (6 total)                             │   │
+│  │  ┌─────────────────┐ ┌────────────────────┐  │   │
+│  │  │portfolio_summary│ │transaction_analyzer│  │   │
+│  │  └────────┬────────┘ └────────┬───────────┘  │   │
+│  │  ┌────────┴────────┐ ┌────────┴───────────┐  │   │
+│  │  │ market_context  │ │  tax_estimator     │  │   │
+│  │  └────────┬────────┘ └────────┬───────────┘  │   │
+│  │  ┌────────┴────────┐ ┌────────┴───────────┐  │   │
+│  │  │compliance_check │ │allocation_optimizer│  │   │
+│  │  └─────────────────┘ └────────────────────┘  │   │
+│  └──────────────────────────────────────────────┘   │
+│                 │                                     │
+│  ┌──────────────▼───────────────────────────────┐   │
+│  │  Ghostfolio Services (injected via DI)       │   │
+│  │  - PortfolioService.getDetails()             │   │
+│  │  - OrderService.getOrders()                  │   │
+│  │  - DataProviderService.getQuotes()           │   │
+│  │  - PropertyService.getByKey()                │   │
+│  └──────────────────────────────────────────────┘   │
+│                                                      │
+│  ┌──────────────────────────────────────────────┐   │
+│  │  Verification Layer                          │   │
+│  │  - Disclaimer enforcement (regex + inject)   │   │
+│  │  - Numerical accuracy verification           │   │
+│  │  - Hallucination detection                   │   │
+│  │  - Confidence scoring (0-1)                  │   │
+│  └──────────────────────────────────────────────┘   │
+│                                                      │
+│  ┌──────────────────────────────────────────────┐   │
+│  │  Telemetry                                   │   │
+│  │  - Structured JSON logs                      │   │
+│  │  - Trace IDs, duration, tool calls, tokens   │   │
+│  └──────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────┘
+```
+
+## Setup
+
+### 1. Enable the feature flag
+
+Set in your environment:
+```
+ENABLE_FEATURE_AI_AGENT=true
+```
+
+### 2. Configure Anthropic API key
+
+Store the API key via Ghostfolio's PropertyService (admin DB insert):
+```sql
+INSERT INTO "Property" (key, value) VALUES ('API_KEY_ANTHROPIC', '"sk-ant-your-key-here"');
+```
+
+### 3. Verify
+
+```bash
+curl -X POST http://localhost:3333/api/v1/ai-agent/chat \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "What does my portfolio look like?"}'
+```
+
+## Tools
+
+| Tool | Description | Ghostfolio Service |
+|------|-------------|-------------------|
+| `portfolio_summary` | Holdings, allocation, performance, summary stats | `PortfolioService.getDetails()` |
+| `transaction_analyzer` | Activity counts by type/month, fees, date ranges | `OrderService.getOrders()` |
+| `market_context` | Current prices, currency, market state | `DataProviderService.getQuotes()` |
+| `tax_estimator` | FIFO capital gains estimation | `OrderService.getOrders()` + FIFO logic |
+| `compliance_checker` | Concentration, diversification, currency checks | `PortfolioService.getDetails()` |
+| `allocation_optimizer` | Target allocation drift, rebalance suggestions | `PortfolioService.getDetails()` |
+
+## Verification Layer
+
+1. **Disclaimer Enforcement**: Every response is checked for financial advice disclaimer via regex. If missing, it's auto-injected.
+
+2. **Numerical Accuracy**: Numbers in LLM response are extracted and compared against tool result numbers with configurable tolerance (default 0.01%).
+
+3. **Hallucination Detection**: Factual claims (sentences with numbers) are cross-referenced against tool outputs. Score > 5% triggers warning, > 10% triggers regeneration.
+
+4. **Confidence Scoring**: 0-1 score based on tool call count, error state, and response length. Scores < 0.7 trigger uncertainty language.
+
+## Testing
+
+```bash
+# Run all AI agent tests
+npx jest --config apps/api/jest.config.ts --testPathPatterns='ai-agent.*spec'
+```
+
+**Test coverage:**
+- 59 unit tests (portfolio summary, transaction analyzer, compliance checker, verification service)
+- 25 integration/eval tests (verification, hallucination detection, eval case validation)
+- 69 eval cases (portfolio, transactions, market, tax, compliance, allocation, multi-tool, adversarial, edge-case)
+
+## File Structure
+
+```
+apps/api/src/app/endpoints/ai-agent/
+├── ai-agent.module.ts          # NestJS module
+├── ai-agent.controller.ts      # POST /ai-agent/chat endpoint
+├── ai-agent.service.ts         # Core orchestrator (Vercel AI SDK + Anthropic)
+├── dto/
+│   └── ai-agent-chat.dto.ts    # Request validation
+├── tools/
+│   ├── portfolio-summary.tool.ts
+│   ├── transaction-analyzer.tool.ts
+│   ├── market-context.tool.ts
+│   ├── tax-estimator.tool.ts
+│   ├── compliance-checker.tool.ts
+│   ├── allocation-optimizer.tool.ts
+│   └── __tests__/
+│       ├── portfolio-summary.tool.spec.ts
+│       ├── transaction-analyzer.tool.spec.ts
+│       ├── compliance-checker.tool.spec.ts
+│       └── verification.service.spec.ts
+├── verification/
+│   ├── verification.service.ts
+│   └── hallucination-detector.ts
+├── telemetry/
+│   └── telemetry.service.ts
+└── __tests__/
+    ├── eval-cases.ts           # 69 eval test cases
+    └── ai-agent.eval.spec.ts   # Integration tests
+
+libs/common/src/lib/
+├── config.ts                   # + PROPERTY_API_KEY_ANTHROPIC
+├── permissions.ts              # + accessAiAgent permission
+└── interfaces/
+    └── responses/
+        └── ai-agent-response.interface.ts
+
+apps/client/src/app/pages/ai-agent/
+└── ai-agent-page.component.ts  # Angular chat UI
+```
+
+## Security
+
+- JWT authentication required
+- Permission-based access control (`accessAiAgent`)
+- Feature flag gating (`ENABLE_FEATURE_AI_AGENT`)
+- Read-only operations only — no portfolio mutations
+- User-scoped data access — no cross-user data leakage
+- Adversarial test suite validates against prompt injection, buy/sell solicitation, cross-user requests, and write operations
+
+## Dependencies
+
+- `ai` (v4.3.16) — Vercel AI SDK (pre-existing)
+- `@ai-sdk/anthropic` (v1.x) — Anthropic Claude provider (added)
