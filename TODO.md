@@ -47,3 +47,22 @@
 ## Phase 8: Open Source Prep
 - [x] Architecture documentation (`docs/ai-agent.md`)
 - [x] CHANGELOG entry
+
+## Phase 9: Langfuse Observability Integration
+- [x] Add Langfuse SDK dependencies (`langfuse`, `langfuse-langchain`)
+- [x] Create `TelemetryService` with Langfuse client initialization
+- [x] Create `EvalPersistenceService` for eval result storage
+- [x] Add OpenTelemetry instrumentation (`instrumentation.ts`)
+- [x] Wire `experimental_telemetry` into AI SDK `streamText` calls
+- [x] Add `onFinish` callback with `langfuse.flush()` for streaming traces
+- [x] Add `AiAgentFeedback` model to Prisma schema
+- [x] Create database migration (`20260224032126_add_ai_agent_observability`)
+- [x] Add feedback DTO and endpoint
+- [x] Configure Langfuse API keys on Railway (fix 401 Unauthorized)
+- [x] Verify traces appear in Langfuse dashboard
+
+## Phase 10: Deployment & Dev Experience
+- [x] Add deployment guide to `DEVELOPMENT.md` (Docker Compose + Railway)
+- [x] Add `fix-client-path` script for quoted folder name workaround
+- [x] Add `CLAUDE.md` project instructions
+- [x] Add Langfuse env placeholders to `.env.dev`

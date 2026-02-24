@@ -2,17 +2,89 @@ import { VerificationService } from '../verification/verification.service';
 import { HallucinationDetector } from '../verification/hallucination-detector';
 import { evalCases } from './eval-cases';
 
+const PERSIST_EVAL_RESULTS = process.env.PERSIST_EVAL_RESULTS === 'true';
+
 describe('AiAgentService — Eval Suite', () => {
   let verificationService: VerificationService;
   let hallucinationDetector: HallucinationDetector;
+  const evalResults: {
+    caseId: string;
+    category: string;
+    passed: boolean;
+    durationMs: number;
+    toolsCalled: string[];
+    assertions: Record<string, unknown>;
+  }[] = [];
 
   beforeEach(() => {
     verificationService = new VerificationService();
     hallucinationDetector = new HallucinationDetector();
   });
 
+  afterAll(async () => {
+    if (PERSIST_EVAL_RESULTS && evalResults.length > 0) {
+      try {
+        const { PrismaClient } = await import('@prisma/client');
+        const prisma = new PrismaClient();
+        const runId = crypto.randomUUID();
+
+        await prisma.aiAgentEvalResult.createMany({
+          data: evalResults.map((r) => ({
+            runId,
+            caseId: r.caseId,
+            category: r.category,
+            passed: r.passed,
+            durationMs: r.durationMs,
+            toolsCalled: r.toolsCalled,
+            assertions: JSON.stringify(r.assertions)
+          }))
+        });
+
+        const passed = evalResults.filter((r) => r.passed).length;
+        const total = evalResults.length;
+        console.log(
+          `\n[Eval Persistence] Run ${runId}: ${passed}/${total} passed (${((passed / total) * 100).toFixed(1)}%)`
+        );
+
+        // Check for regression against last 5 runs
+        const previousRuns = await prisma.aiAgentEvalResult.groupBy({
+          by: ['runId'],
+          _max: { createdAt: true },
+          where: { runId: { not: runId } },
+          orderBy: { _max: { createdAt: 'desc' } },
+          take: 5
+        });
+
+        if (previousRuns.length > 0) {
+          let histPassed = 0;
+          let histTotal = 0;
+          for (const run of previousRuns) {
+            const cases = await prisma.aiAgentEvalResult.findMany({
+              where: { runId: run.runId }
+            });
+            histPassed += cases.filter((c) => c.passed).length;
+            histTotal += cases.length;
+          }
+          const histRate = histTotal > 0 ? (histPassed / histTotal) * 100 : 0;
+          const currentRate = (passed / total) * 100;
+          const drop = histRate - currentRate;
+          if (drop > 5) {
+            console.warn(
+              `[Eval Regression] Pass rate dropped ${drop.toFixed(1)}%: ${histRate.toFixed(1)}% -> ${currentRate.toFixed(1)}%`
+            );
+          }
+        }
+
+        await prisma.$disconnect();
+      } catch (error) {
+        console.error('[Eval Persistence] Failed to persist results:', error.message);
+      }
+    }
+  });
+
   describe('Verification Service Integration', () => {
     it('should enforce disclaimer on all responses', () => {
+      const startTime = performance.now();
       const responses = [
         'Your portfolio has 10 holdings worth $100,000.',
         'The current price of AAPL is $175.50.',
@@ -21,23 +93,53 @@ describe('AiAgentService — Eval Suite', () => {
         ''
       ];
 
+      let passed = true;
       for (const response of responses) {
         const result = verificationService.enforceDisclaimer(response);
+        if (
+          !result.match(
+            /financial advice|consult.*advisor|educational purposes|not.*recommendation/i
+          )
+        ) {
+          passed = false;
+        }
         expect(result).toMatch(
           /financial advice|consult.*advisor|educational purposes|not.*recommendation/i
         );
       }
+
+      evalResults.push({
+        caseId: 'verification-disclaimer',
+        category: 'verification',
+        passed,
+        durationMs: Math.round(performance.now() - startTime),
+        toolsCalled: [],
+        assertions: { hasDisclaimer: passed }
+      });
     });
 
     it('should extract numbers from financial text', () => {
+      const startTime = performance.now();
       const text =
         'Your portfolio is worth $125,000.50 with 15.3% return and 3 holdings.';
       const numbers = verificationService.extractNumbers(text);
+      const passed = numbers.length > 0 && numbers.includes(125000.5);
+
       expect(numbers.length).toBeGreaterThan(0);
       expect(numbers).toContain(125000.5);
+
+      evalResults.push({
+        caseId: 'verification-extract-numbers',
+        category: 'verification',
+        passed,
+        durationMs: Math.round(performance.now() - startTime),
+        toolsCalled: [],
+        assertions: { numbersExtracted: numbers.length, hasExpectedNumber: numbers.includes(125000.5) }
+      });
     });
 
     it('should verify numerical accuracy against tool results', () => {
+      const startTime = performance.now();
       const responseNumbers = [100000, 15.3, 35];
       const toolNumbers = [100000, 15.3, 35, 50000, 20.1];
 
@@ -45,11 +147,23 @@ describe('AiAgentService — Eval Suite', () => {
         responseNumbers,
         toolNumbers
       );
+      const passed = result.accurate && result.mismatches.length === 0;
+
       expect(result.accurate).toBe(true);
       expect(result.mismatches).toHaveLength(0);
+
+      evalResults.push({
+        caseId: 'verification-numerical-accuracy',
+        category: 'verification',
+        passed,
+        durationMs: Math.round(performance.now() - startTime),
+        toolsCalled: [],
+        assertions: { accurate: result.accurate, mismatches: result.mismatches.length }
+      });
     });
 
     it('should detect numerical inaccuracies', () => {
+      const startTime = performance.now();
       const responseNumbers = [100000, 25.0];
       const toolNumbers = [100000, 15.3];
 
@@ -57,28 +171,76 @@ describe('AiAgentService — Eval Suite', () => {
         responseNumbers,
         toolNumbers
       );
+      const passed = !result.accurate && result.mismatches.length > 0;
+
       expect(result.accurate).toBe(false);
       expect(result.mismatches.length).toBeGreaterThan(0);
+
+      evalResults.push({
+        caseId: 'verification-detect-inaccuracy',
+        category: 'verification',
+        passed,
+        durationMs: Math.round(performance.now() - startTime),
+        toolsCalled: [],
+        assertions: { accurate: result.accurate, mismatches: result.mismatches.length }
+      });
     });
 
     it('should assess high confidence when tools are called', () => {
+      const startTime = performance.now();
       const confidence = verificationService.assessConfidence(3, false, 500);
+      const passed = confidence >= 0.7;
+
       expect(confidence).toBeGreaterThanOrEqual(0.7);
+
+      evalResults.push({
+        caseId: 'verification-high-confidence',
+        category: 'verification',
+        passed,
+        durationMs: Math.round(performance.now() - startTime),
+        toolsCalled: [],
+        assertions: { confidence, threshold: 0.7 }
+      });
     });
 
     it('should assess low confidence with no tool calls', () => {
+      const startTime = performance.now();
       const confidence = verificationService.assessConfidence(0, false, 500);
+      const passed = confidence < 0.7;
+
       expect(confidence).toBeLessThan(0.7);
+
+      evalResults.push({
+        caseId: 'verification-low-confidence-no-tools',
+        category: 'verification',
+        passed,
+        durationMs: Math.round(performance.now() - startTime),
+        toolsCalled: [],
+        assertions: { confidence, threshold: 0.7 }
+      });
     });
 
     it('should assess low confidence with errors', () => {
+      const startTime = performance.now();
       const confidence = verificationService.assessConfidence(2, true, 500);
+      const passed = confidence < 0.8;
+
       expect(confidence).toBeLessThan(0.8);
+
+      evalResults.push({
+        caseId: 'verification-low-confidence-errors',
+        category: 'verification',
+        passed,
+        durationMs: Math.round(performance.now() - startTime),
+        toolsCalled: [],
+        assertions: { confidence, threshold: 0.8 }
+      });
     });
   });
 
   describe('Hallucination Detection', () => {
     it('should detect grounded claims', () => {
+      const startTime = performance.now();
       const response =
         'Your portfolio is worth $100,000.50 with a 15.3% return.';
       const toolResults = [
@@ -86,11 +248,23 @@ describe('AiAgentService — Eval Suite', () => {
       ];
 
       const result = hallucinationDetector.check(response, toolResults);
+      const passed = result.score < 0.1 && !result.shouldRegenerate;
+
       expect(result.score).toBeLessThan(0.1);
       expect(result.shouldRegenerate).toBe(false);
+
+      evalResults.push({
+        caseId: 'hallucination-grounded',
+        category: 'hallucination',
+        passed,
+        durationMs: Math.round(performance.now() - startTime),
+        toolsCalled: [],
+        assertions: { score: result.score, shouldRegenerate: result.shouldRegenerate }
+      });
     });
 
     it('should flag ungrounded numerical claims', () => {
+      const startTime = performance.now();
       const response =
         'Your portfolio earned a 45.7% return last year and is worth $999,999.';
       const toolResults = [
@@ -98,22 +272,57 @@ describe('AiAgentService — Eval Suite', () => {
       ];
 
       const result = hallucinationDetector.check(response, toolResults);
+      const passed = result.flaggedClaims.length > 0;
+
       expect(result.flaggedClaims.length).toBeGreaterThan(0);
+
+      evalResults.push({
+        caseId: 'hallucination-ungrounded',
+        category: 'hallucination',
+        passed,
+        durationMs: Math.round(performance.now() - startTime),
+        toolsCalled: [],
+        assertions: { flaggedClaims: result.flaggedClaims.length }
+      });
     });
 
     it('should handle empty tool results', () => {
+      const startTime = performance.now();
       const response = 'Your portfolio looks great!';
       const result = hallucinationDetector.check(response, []);
+      const passed = result.totalClaims === 0 && result.score === 0;
+
       expect(result.totalClaims).toBe(0);
       expect(result.score).toBe(0);
+
+      evalResults.push({
+        caseId: 'hallucination-empty-tools',
+        category: 'hallucination',
+        passed,
+        durationMs: Math.round(performance.now() - startTime),
+        toolsCalled: [],
+        assertions: { totalClaims: result.totalClaims, score: result.score }
+      });
     });
 
     it('should handle response without numerical claims', () => {
+      const startTime = performance.now();
       const response =
         'I apologize, but I cannot access other users\' data.';
       const result = hallucinationDetector.check(response, []);
+      const passed = result.totalClaims === 0 && !result.shouldRegenerate;
+
       expect(result.totalClaims).toBe(0);
       expect(result.shouldRegenerate).toBe(false);
+
+      evalResults.push({
+        caseId: 'hallucination-no-claims',
+        category: 'hallucination',
+        passed,
+        durationMs: Math.round(performance.now() - startTime),
+        toolsCalled: [],
+        assertions: { totalClaims: result.totalClaims, shouldRegenerate: result.shouldRegenerate }
+      });
     });
   });
 

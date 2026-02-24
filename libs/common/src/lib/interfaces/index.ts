@@ -45,7 +45,9 @@ import type { AdminUserResponse } from './responses/admin-user-response.interfac
 import type { AdminUsersResponse } from './responses/admin-users-response.interface';
 import type {
   AiAgentMessage,
-  AiAgentResponse
+  AiAgentResponse,
+  AiAgentToolCall,
+  AiAgentUsage
 } from './responses/ai-agent-response.interface';
 import type { AiPromptResponse } from './responses/ai-prompt-response.interface';
 import type { ApiKeyResponse } from './responses/api-key-response.interface';
@@ -106,6 +108,8 @@ export {
   AccessTokenResponse,
   AiAgentMessage,
   AiAgentResponse,
+  AiAgentToolCall,
+  AiAgentUsage,
   AccountBalance,
   AccountBalancesResponse,
   AccountResponse,

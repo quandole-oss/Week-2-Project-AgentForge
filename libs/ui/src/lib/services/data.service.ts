@@ -79,7 +79,7 @@ import {
 } from '@prisma/client';
 import { format, parseISO } from 'date-fns';
 import { cloneDeep, groupBy, isNumber } from 'lodash';
-import { Observable } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { map } from 'rxjs/operators';
 
 @Injectable({
@@ -683,6 +683,109 @@ export class DataService {
       conversationHistory,
       message
     });
+  }
+
+  public postAiAgentFeedback({
+    traceId,
+    rating,
+    correction
+  }: {
+    traceId: string;
+    rating: 'up' | 'down';
+    correction?: string;
+  }) {
+    return this.http.post('/api/v1/ai-agent/feedback', {
+      traceId,
+      rating,
+      correction
+    });
+  }
+
+  public postAiAgentChatStream({
+    conversationHistory,
+    message
+  }: {
+    conversationHistory?: AiAgentMessage[];
+    message: string;
+  }): Observable<{
+    text: string;
+    traceId: string;
+    done: boolean;
+    toolNames?: string[];
+  }> {
+    const subject = new Subject<{
+      text: string;
+      traceId: string;
+      done: boolean;
+      toolNames?: string[];
+    }>();
+
+    const token =
+      window.sessionStorage.getItem('auth-token') ||
+      window.localStorage.getItem('auth-token');
+
+    fetch('/api/v1/ai-agent/chat/stream', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ conversationHistory, message })
+    })
+      .then(async (response) => {
+        // #region agent log
+        fetch('http://127.0.0.1:7769/ingest/bd6e376f-bc68-42f2-99ef-dcf89e812731',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'60cdda'},body:JSON.stringify({sessionId:'60cdda',location:'data.service.ts:streamResponse',message:'ai-agent stream response',data:{ok:response.ok,status:response.status,hasBody:!!response.body},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+        // #endregion
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const traceId = response.headers.get('X-Trace-Id') ?? '';
+        const reader = response.body?.getReader();
+
+        if (!reader) {
+          throw new Error('No response body');
+        }
+
+        const decoder = new TextDecoder();
+        let accumulated = '';
+
+        function stripToolsLine(
+          acc: string
+        ): { text: string; toolNames?: string[] } {
+          const m = acc.match(/\n__TOOLS__:(.+)$/);
+          if (!m) return { text: acc };
+          try {
+            const toolNames = JSON.parse(m[1].trim()) as string[];
+            return {
+              text: acc.slice(0, acc.length - m[0].length).trimEnd(),
+              toolNames
+            };
+          } catch {
+            return { text: acc };
+          }
+        }
+
+        while (true) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            const { text, toolNames } = stripToolsLine(accumulated);
+            subject.next({ text, traceId, done: true, toolNames });
+            subject.complete();
+            break;
+          }
+
+          accumulated += decoder.decode(value, { stream: true });
+          const { text } = stripToolsLine(accumulated);
+          subject.next({ text, traceId, done: false });
+        }
+      })
+      .catch((error) => {
+        subject.error(error);
+      });
+
+    return subject.asObservable();
   }
 
   public fetchPublicPortfolio(aAccessId: string) {

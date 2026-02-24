@@ -1,11 +1,12 @@
 import type {
   AiAgentMessage,
-  AiAgentResponse
+  AiAgentResponse,
+  AiAgentUsage
 } from '@ghostfolio/common/interfaces';
 import { DataService } from '@ghostfolio/ui/services';
 
 import { CommonModule } from '@angular/common';
-import { Component, OnDestroy } from '@angular/core';
+import { ChangeDetectorRef, Component, NgZone, OnDestroy } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -22,9 +23,15 @@ interface ChatMessage {
   content: string;
   contentHtml?: SafeHtml;
   timestamp: string;
+  traceId?: string;
   toolCalls?: AiAgentResponse['toolCalls'];
   confidence?: number;
   sources?: AiAgentResponse['sources'];
+  usage?: AiAgentUsage;
+  durationMs?: number;
+  feedbackGiven?: 'up' | 'down' | null;
+  showCorrectionInput?: boolean;
+  correctionText?: string;
 }
 
 @Component({
@@ -89,20 +96,52 @@ interface ChatMessage {
         color: rgba(var(--dark-primary-text));
       }
 
-      :host-context(.is-dark-theme) .message.user {
+      :host-context(.theme-dark) .message.user {
         background-color: rgba(255, 255, 255, 0.12);
         color: #ffffff;
       }
 
-      :host-context(.is-dark-theme) .message.assistant {
+      :host-context(.theme-dark) .message.assistant {
         background-color: rgba(255, 255, 255, 0.05);
         border-color: rgba(255, 255, 255, 0.12);
         color: #e0e0e0;
       }
 
+      :host-context(.theme-dark) .message.assistant .markdown-body,
+      :host-context(.theme-dark) .message.assistant .markdown-body * {
+        color: inherit;
+      }
+
       .tool-calls {
         margin-top: 0.5rem;
         font-size: 0.85rem;
+      }
+
+      .tool-call-entry {
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .tool-timing {
+        font-size: 0.75rem;
+        opacity: 0.6;
+        margin-left: 0.5rem;
+      }
+
+      .tool-result {
+        max-height: 200px;
+        overflow-y: auto;
+        font-size: 0.8rem;
+      }
+
+      .message-stats {
+        font-size: 0.75rem;
+        opacity: 0.6;
+        margin-top: 0.5rem;
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
       }
 
       .confidence {
@@ -117,6 +156,49 @@ interface ChatMessage {
         margin-top: 0.25rem;
       }
 
+      .feedback-area {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        margin-top: 0.5rem;
+      }
+
+      .feedback-btn {
+        min-width: 32px;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        font-size: 1rem;
+        line-height: 32px;
+        cursor: pointer;
+      }
+
+      .feedback-area .feedback-active {
+        opacity: 1;
+      }
+
+      .feedback-area .feedback-inactive {
+        opacity: 0.4;
+      }
+
+      .feedback-submitted {
+        font-size: 0.75rem;
+        opacity: 0.6;
+        margin-left: 0.5rem;
+      }
+
+      .correction-input {
+        margin-top: 0.5rem;
+        display: flex;
+        gap: 0.5rem;
+        align-items: flex-end;
+      }
+
+      .correction-input mat-form-field {
+        flex: 1;
+        font-size: 0.85rem;
+      }
+
       .disclaimer {
         font-size: 0.75rem;
         opacity: 0.5;
@@ -126,8 +208,25 @@ interface ChatMessage {
         border-top: 1px solid rgba(var(--dark-dividers));
       }
 
-      :host-context(.is-dark-theme) .disclaimer {
+      :host-context(.theme-dark) .disclaimer {
         border-top-color: rgba(var(--light-dividers));
+        color: rgba(255, 255, 255, 0.9);
+        opacity: 1;
+      }
+
+      :host-context(.theme-dark) .confidence {
+        color: rgba(255, 255, 255, 0.85);
+        opacity: 1;
+      }
+
+      :host-context(.theme-dark) .sources {
+        color: rgba(255, 255, 255, 0.85);
+        opacity: 1;
+      }
+
+      :host-context(.theme-dark) .message-stats {
+        color: rgba(255, 255, 255, 0.6);
+        opacity: 1;
       }
 
       .input-area {
@@ -224,12 +323,36 @@ interface ChatMessage {
                   </mat-panel-title>
                 </mat-expansion-panel-header>
                 @for (tc of msg.toolCalls; track tc.toolName) {
-                  <div>
+                  <div class="tool-call-entry">
                     <strong>{{ tc.toolName }}</strong>
+                    @if (tc.durationMs) {
+                      <span class="tool-timing">{{ tc.durationMs }}ms</span>
+                    }
                     <pre>{{ tc.args | json }}</pre>
+                    @if (tc.result) {
+                      <details>
+                        <summary>Result</summary>
+                        <pre class="tool-result">{{ tc.result | json }}</pre>
+                      </details>
+                    }
                   </div>
                 }
               </mat-expansion-panel>
+            }
+
+            @if (msg.role === 'assistant' && msg.usage) {
+              <div class="message-stats">
+                <span>{{ msg.usage.totalTokens }} tokens</span>
+                @if (msg.durationMs) {
+                  <span>{{ (msg.durationMs / 1000).toFixed(1) }}s</span>
+                }
+                @if (msg.toolCalls?.length) {
+                  <span>{{ msg.toolCalls.length }} tool calls</span>
+                }
+                @if (msg.usage.cost) {
+                  <span>\${{ msg.usage.cost.toFixed(4) }}</span>
+                }
+              </div>
             }
 
             @if (msg.confidence !== undefined) {
@@ -246,10 +369,74 @@ interface ChatMessage {
                 }
               </div>
             }
+
+            @if (msg.role === 'assistant' && msg.traceId) {
+              <div class="feedback-area">
+                @if (msg.feedbackGiven === undefined || msg.feedbackGiven === null) {
+                  <button
+                    mat-button
+                    (click)="submitFeedback(msg, 'up')"
+                    title="Helpful"
+                    class="feedback-btn"
+                  >
+                    &#x1F44D;
+                  </button>
+                  <button
+                    mat-button
+                    (click)="submitFeedback(msg, 'down')"
+                    title="Not helpful"
+                    class="feedback-btn"
+                  >
+                    &#x1F44E;
+                  </button>
+                } @else {
+                  <button
+                    mat-button
+                    disabled
+                    class="feedback-btn"
+                    [class.feedback-active]="msg.feedbackGiven === 'up'"
+                    [class.feedback-inactive]="msg.feedbackGiven !== 'up'"
+                  >
+                    &#x1F44D;
+                  </button>
+                  <button
+                    mat-button
+                    disabled
+                    class="feedback-btn"
+                    [class.feedback-active]="msg.feedbackGiven === 'down'"
+                    [class.feedback-inactive]="msg.feedbackGiven !== 'down'"
+                  >
+                    &#x1F44E;
+                  </button>
+                  <span class="feedback-submitted">Feedback submitted</span>
+                }
+              </div>
+              @if (msg.showCorrectionInput) {
+                <div class="correction-input">
+                  <mat-form-field appearance="outline">
+                    <mat-label i18n>What would be a better response?</mat-label>
+                    <input
+                      matInput
+                      [(ngModel)]="msg.correctionText"
+                      (keydown.enter)="submitCorrection(msg)"
+                    />
+                  </mat-form-field>
+                  <button
+                    mat-raised-button
+                    color="primary"
+                    (click)="submitCorrection(msg)"
+                    [disabled]="!msg.correctionText?.trim()"
+                    i18n
+                  >
+                    Send
+                  </button>
+                </div>
+              }
+            }
           </div>
         }
 
-        @if (isLoading) {
+        @if (isLoading && !messages[messages.length - 1]?.content) {
           <div class="loading">
             <mat-spinner diameter="20"></mat-spinner>
             <span i18n>Thinking...</span>
@@ -293,7 +480,9 @@ export class GfAiAgentPageComponent implements OnDestroy {
   private unsubscribeSubject = new Subject<void>();
 
   public constructor(
+    private changeDetectorRef: ChangeDetectorRef,
     private dataService: DataService,
+    private ngZone: NgZone,
     private sanitizer: DomSanitizer
   ) {}
 
@@ -320,32 +509,97 @@ export class GfAiAgentPageComponent implements OnDestroy {
         timestamp: m.timestamp
       }));
 
+    const assistantMessage: ChatMessage = {
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toISOString()
+    };
+    this.messages.push(assistantMessage);
+
     this.dataService
-      .postAiAgentChat({ conversationHistory, message })
+      .postAiAgentChatStream({ conversationHistory, message })
       .pipe(takeUntil(this.unsubscribeSubject))
       .subscribe({
-        next: (response: AiAgentResponse) => {
-          this.messages.push({
-            role: 'assistant',
-            content: response.message.content,
-            contentHtml: this.sanitizer.bypassSecurityTrustHtml(
-              marked(response.message.content) as string
-            ),
-            timestamp: response.message.timestamp,
-            toolCalls: response.toolCalls,
-            confidence: response.confidence,
-            sources: response.sources
+        next: ({ text, traceId, done, toolNames }) => {
+          this.ngZone.run(() => {
+            assistantMessage.content = text;
+            assistantMessage.contentHtml =
+              this.sanitizer.bypassSecurityTrustHtml(
+                marked(text) as string
+              );
+
+            if (done) {
+              assistantMessage.traceId = traceId;
+              assistantMessage.feedbackGiven = null;
+              if (toolNames?.length) {
+                assistantMessage.toolCalls = toolNames.map((toolName) => ({
+                  toolName,
+                  args: {},
+                  result: undefined
+                }));
+              }
+              this.isLoading = false;
+            }
+
+            this.changeDetectorRef.markForCheck();
           });
-          this.isLoading = false;
         },
         error: () => {
-          this.messages.push({
-            role: 'assistant',
-            content:
-              'Sorry, I encountered an error processing your request. Please try again.',
-            timestamp: new Date().toISOString()
+          this.ngZone.run(() => {
+            assistantMessage.content =
+              'Sorry, I encountered an error processing your request. Please try again.';
+            assistantMessage.contentHtml = undefined;
+            this.isLoading = false;
           });
-          this.isLoading = false;
+        }
+      });
+  }
+
+  public submitFeedback(msg: ChatMessage, rating: 'up' | 'down') {
+    if (!msg.traceId || msg.feedbackGiven) {
+      return;
+    }
+
+    if (rating === 'down') {
+      msg.showCorrectionInput = true;
+    }
+
+    this.dataService
+      .postAiAgentFeedback({ traceId: msg.traceId, rating })
+      .pipe(takeUntil(this.unsubscribeSubject))
+      .subscribe({
+        next: () => {
+          msg.feedbackGiven = rating;
+          if (rating === 'up') {
+            msg.showCorrectionInput = false;
+          }
+        },
+        error: () => {
+          // Silently fail — feedback is non-critical
+        }
+      });
+  }
+
+  public submitCorrection(msg: ChatMessage) {
+    const correction = msg.correctionText?.trim();
+    if (!msg.traceId || !correction) {
+      return;
+    }
+
+    this.dataService
+      .postAiAgentFeedback({
+        traceId: msg.traceId,
+        rating: 'down',
+        correction
+      })
+      .pipe(takeUntil(this.unsubscribeSubject))
+      .subscribe({
+        next: () => {
+          msg.showCorrectionInput = false;
+          msg.feedbackGiven = 'down';
+        },
+        error: () => {
+          // Silently fail
         }
       });
   }

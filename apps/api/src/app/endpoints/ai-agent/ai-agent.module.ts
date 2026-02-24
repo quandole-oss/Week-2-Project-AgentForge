@@ -22,6 +22,7 @@ import { PortfolioSnapshotQueueModule } from '@ghostfolio/api/services/queues/po
 import { SymbolProfileModule } from '@ghostfolio/api/services/symbol-profile/symbol-profile.module';
 
 import { Module } from '@nestjs/common';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 import { AiAgentController } from './ai-agent.controller';
 import { AiAgentService } from './ai-agent.service';
@@ -31,6 +32,7 @@ import { MarketContextTool } from './tools/market-context.tool';
 import { PortfolioSummaryTool } from './tools/portfolio-summary.tool';
 import { TaxEstimatorTool } from './tools/tax-estimator.tool';
 import { TransactionAnalyzerTool } from './tools/transaction-analyzer.tool';
+import { EvalPersistenceService } from './telemetry/eval-persistence.service';
 import { TelemetryService } from './telemetry/telemetry.service';
 import { HallucinationDetector } from './verification/hallucination-detector';
 import { VerificationService } from './verification/verification.service';
@@ -38,6 +40,18 @@ import { VerificationService } from './verification/verification.service';
 @Module({
   controllers: [AiAgentController],
   imports: [
+    ThrottlerModule.forRoot([
+      {
+        name: 'chat',
+        ttl: 60_000,
+        limit: 10
+      },
+      {
+        name: 'feedback',
+        ttl: 60_000,
+        limit: 30
+      }
+    ]),
     ApiModule,
     BenchmarkModule,
     ConfigurationModule,
@@ -61,6 +75,7 @@ import { VerificationService } from './verification/verification.service';
     AllocationOptimizerTool,
     ComplianceCheckerTool,
     CurrentRateService,
+    EvalPersistenceService,
     HallucinationDetector,
     MarketContextTool,
     MarketDataService,

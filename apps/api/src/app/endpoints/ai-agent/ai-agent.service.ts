@@ -760,6 +760,10 @@ export class AiAgentService {
     ];
 
     const toolCallsLog: AiAgentToolCall[] = [];
+    let resolveToolNames: (names: string[]) => void;
+    const toolNamesPromise = new Promise<string[]>((resolve) => {
+      resolveToolNames = resolve;
+    });
 
     const tools = {
       portfolio_summary: tool({
@@ -1153,11 +1157,13 @@ export class AiAgentService {
           this.logger.warn(
             `[${traceId}] Stream onFinish telemetry failed: ${err.message}`
           );
+        } finally {
+          resolveToolNames(toolCallsLog.map((t) => t.toolName));
         }
       }
     });
 
-    return { result, traceId };
+    return { result, traceId, toolNamesPromise };
   }
 
   public async submitFeedback({

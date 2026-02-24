@@ -1,3 +1,5 @@
+import './instrumentation';
+
 import {
   DEFAULT_HOST,
   DEFAULT_PORT,

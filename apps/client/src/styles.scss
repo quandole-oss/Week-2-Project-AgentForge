@@ -317,6 +317,26 @@ body {
       }
     }
 
+    gf-ai-agent-page {
+      .message.user {
+        color: #ffffff;
+      }
+      .message.assistant,
+      .message.assistant .markdown-body,
+      .message.assistant .markdown-body * {
+        color: #e0e0e0;
+      }
+      .disclaimer {
+        color: rgba(255, 255, 255, 0.9);
+        opacity: 1;
+      }
+      .confidence,
+      .sources {
+        color: rgba(255, 255, 255, 0.85);
+        opacity: 1;
+      }
+    }
+
     .svgMap-tooltip {
       background: var(--dark-background);
 

@@ -32,6 +32,21 @@ try {
   console.error('Error occurred:', error);
 }
 
+// Fix path embedding when project folder contains " (e.g. Week 2 Project "AgentForge")
+try {
+  const pathFixFiles = replaceInFileSync({
+    files: './dist/apps/client/**/*.js',
+    from: /"AgentForge"/g,
+    to: '\\"AgentForge\\"',
+    allowEmptyPaths: true
+  });
+  if (pathFixFiles?.length) {
+    console.log('Path quote escaped in', pathFixFiles.length, 'client JS file(s)');
+  }
+} catch (pathErr) {
+  console.warn('Path-escape step skipped:', pathErr.message);
+}
+
 function formatWithTwoDigits(aNumber) {
   return aNumber < 10 ? '0' + aNumber : aNumber;
 }

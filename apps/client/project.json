@@ -221,6 +221,10 @@
         "sslKey": "apps/client/localhost.pem"
       },
       "configurations": {
+        "development-en-http": {
+          "buildTarget": "client:build:development-en",
+          "ssl": false
+        },
         "development-ca": {
           "buildTarget": "client:build:development-ca"
         },

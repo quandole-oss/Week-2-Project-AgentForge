@@ -34,6 +34,8 @@ Run `npm run start:server`
 
 Run `npm run start:client` and open https://localhost:4200/en in your browser.
 
+**If the page is blank and the browser console shows `SyntaxError: Unexpected identifier 'AgentForge'`:** your project folder name contains a double quote, which breaks embedded paths in the bundle. Either rename the folder (e.g. to `AgentForge` or `Week-2-Project-AgentForge`) or, after the client has built once, run `npm run fix-client-path` in another terminal, then refresh the page.
+
 #### Other Languages
 
 To start the client in a different language, such as German (`de`), adapt the `start:client` script in the `package.json` file by changing `--configuration=development-en` to `--configuration=development-de`. Then, run `npm run start:client` and open https://localhost:4200/de in your browser.
@@ -111,6 +113,71 @@ https://www.prisma.io/docs/concepts/components/prisma-migrate/db-push
 Run `npm run prisma migrate dev --name added_job_title`
 
 https://www.prisma.io/docs/concepts/components/prisma-migrate#getting-started-with-prisma-migrate
+
+## Deploying live
+
+Nobody can deploy to **your** production for you without access to your cloud account, registry, and secrets. Use the steps below on your machine or in your CI.
+
+### Option A: Docker Compose (VPS, single server)
+
+1. **Production `.env`**  
+   Create a production `.env` (see `.env.dev` / `.env.example`) with real values for:
+   - `POSTGRES_*`, `REDIS_PASSWORD`, `DATABASE_URL`
+   - `JWT_SECRET`, `JWT_EXPIRATION`
+   - `ENABLE_FEATURE_AI_AGENT`, Anthropic API key (if using AI agent)
+
+2. **Build and run with your image**  
+   Build the app image and point compose at it:
+
+   ```bash
+   docker build -t your-registry/ghostfolio:latest .
+   ```
+
+   Edit `docker/docker-compose.yml`: set `image:` to `your-registry/ghostfolio:latest` (or leave as `ghostfolio/ghostfolio:latest` if you use the upstream image). Then:
+
+   ```bash
+   docker compose -f docker/docker-compose.yml --env-file .env up -d
+   ```
+
+   The API (and served client) will be on port 3333. Put a reverse proxy (e.g. Caddy, Nginx) in front for HTTPS and optional custom domain.
+
+### Option B: GitHub Actions → Docker Hub → your server
+
+The repo already has `.github/workflows/docker-image.yml` that builds and pushes a Docker image on:
+
+- **Push of a version tag** (e.g. `2.243.0`): builds and pushes to Docker Hub (if secrets are set).
+- **Pull requests to `main`**: builds only (no push).
+
+To deploy using this pipeline:
+
+1. In GitHub: **Settings → Secrets and variables → Actions** add:
+   - `DOCKER_HUB_USERNAME` — your Docker Hub username
+   - `DOCKER_HUB_ACCESS_TOKEN` — a Docker Hub access token (or app password)
+
+2. Optionally set **Variables**: `DOCKER_REPOSITORY` (e.g. `youruser/ghostfolio`) if you don’t want to use `ghostfolio/ghostfolio`.
+
+3. Create and push a version tag to trigger build and push:
+
+   ```bash
+   git tag 2.243.0
+   git push origin 2.243.0
+   ```
+
+4. On your server, pull the new image and restart:
+
+   ```bash
+   docker compose -f docker/docker-compose.yml pull
+   docker compose -f docker/docker-compose.yml up -d
+   ```
+
+(If you use your own registry, change the workflow’s login and image name accordingly.)
+
+### Checklist before going live
+
+- [ ] Production `.env` with strong secrets and correct `DATABASE_URL` / Redis
+- [ ] Migrations applied (`prisma migrate deploy` runs in the container entrypoint)
+- [ ] HTTPS and, if needed, domain configured (reverse proxy)
+- [ ] AI Agent: `ENABLE_FEATURE_AI_AGENT` and Anthropic API key set if you use the feature
 
 ## SSL
 
