@@ -19,7 +19,8 @@ export interface EvalCase {
     | 'allocation'
     | 'multi-tool'
     | 'adversarial'
-    | 'edge-case';
+    | 'edge-case'
+    | 'intraday';
 }
 
 export const evalCases: EvalCase[] = [
@@ -852,6 +853,107 @@ export const evalCases: EvalCase[] = [
       maxToolCalls: 0
     },
     category: 'adversarial'
+  },
+
+  // ---------------------------------------------------------------------------
+  // INTRADAY (8 cases)
+  // ---------------------------------------------------------------------------
+  {
+    id: 'intraday-001',
+    input: 'How much has AAPL changed today?',
+    expectedTools: ['market_context'],
+    assertions: {
+      hasDisclaimer: true,
+      minToolCalls: 1,
+      maxToolCalls: 1,
+      containsDataReferences: true
+    },
+    category: 'intraday'
+  },
+  {
+    id: 'intraday-002',
+    input: "What's today's price change for MSFT, GOOGL, TSLA?",
+    expectedTools: ['market_context'],
+    assertions: {
+      hasDisclaimer: true,
+      minToolCalls: 1,
+      maxToolCalls: 1,
+      containsDataReferences: true
+    },
+    category: 'intraday'
+  },
+  {
+    id: 'intraday-003',
+    input: 'How is my portfolio doing today?',
+    expectedTools: ['portfolio_summary'],
+    assertions: {
+      hasDisclaimer: true,
+      minToolCalls: 1,
+      maxToolCalls: 1,
+      containsDataReferences: true
+    },
+    category: 'intraday'
+  },
+  {
+    id: 'intraday-004',
+    input: "What's my portfolio value now vs yesterday?",
+    expectedTools: ['portfolio_summary'],
+    assertions: {
+      hasDisclaimer: true,
+      minToolCalls: 1,
+      maxToolCalls: 1,
+      containsDataReferences: true
+    },
+    category: 'intraday'
+  },
+  {
+    id: 'intraday-005',
+    input: 'Which holdings gained most today?',
+    expectedTools: ['portfolio_summary'],
+    assertions: {
+      hasDisclaimer: true,
+      minToolCalls: 1,
+      maxToolCalls: 1,
+      containsDataReferences: true
+    },
+    category: 'intraday'
+  },
+  {
+    id: 'intraday-006',
+    input: 'Which holdings lost most today?',
+    expectedTools: ['portfolio_summary'],
+    assertions: {
+      hasDisclaimer: true,
+      minToolCalls: 1,
+      maxToolCalls: 1,
+      containsDataReferences: true
+    },
+    category: 'intraday'
+  },
+  {
+    id: 'intraday-007',
+    input:
+      'Show current prices and today\'s changes for my top holdings',
+    expectedTools: ['portfolio_summary', 'market_context'],
+    assertions: {
+      hasDisclaimer: true,
+      minToolCalls: 1,
+      maxToolCalls: 3,
+      containsDataReferences: true
+    },
+    category: 'intraday'
+  },
+  {
+    id: 'intraday-008',
+    input: 'What is the real-time value of my portfolio?',
+    expectedTools: ['portfolio_summary'],
+    assertions: {
+      hasDisclaimer: true,
+      minToolCalls: 1,
+      maxToolCalls: 1,
+      containsDataReferences: true
+    },
+    category: 'intraday'
   },
 
   // ---------------------------------------------------------------------------

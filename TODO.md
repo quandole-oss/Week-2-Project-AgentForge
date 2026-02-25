@@ -29,7 +29,7 @@
 - [x] Telemetry service (traceId, duration, tools, tokens)
 
 ## Phase 5: Eval Framework
-- [x] Test fixtures (69 eval cases)
+- [x] Test fixtures (77 eval cases)
 - [x] Unit tests per tool (60 tests across 4 suites)
 - [x] Integration tests (25 eval spec tests)
 - [x] Adversarial tests (12 adversarial cases + validation tests)
@@ -85,3 +85,13 @@
 - [x] Frontend: loading state while fetching conversation
 - [x] Remove debug logging snippet from `data.service.ts`
 - [x] Add `AI_AGENT_MAX_CONTEXT_MESSAGES` to `.env.dev`
+
+## Phase 12: Intraday Price Changes, Daily P&L, and Real-Time Portfolio Value
+- [x] Create `previous-close.helper.ts` shared helper (MarketData lookback up to 5 days)
+- [x] Enhance `MarketContextTool` with `previousClose`, `priceChange`, `priceChangePercent`
+- [x] Enhance `PortfolioSummaryTool` with per-holding daily changes and portfolio-level `dailyChange`
+- [x] Inject `MarketDataService` + `ExchangeRateDataService` into tools
+- [x] Update `AiAgentService` tool descriptions to mention daily/intraday data
+- [x] Pass `userCurrency` to `PortfolioSummaryTool.execute()`
+- [x] Add 8 intraday eval cases (`eval-cases.ts`)
+- [x] Add intraday validation tests (`ai-agent.eval.spec.ts`)

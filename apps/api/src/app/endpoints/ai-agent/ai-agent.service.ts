@@ -169,7 +169,7 @@ export class AiAgentService {
     const tools = {
       portfolio_summary: tool({
         description:
-          'Get a comprehensive summary of the user\'s investment portfolio including holdings, allocation percentages, asset classes, current values, and overall performance metrics. Use this when the user asks about their portfolio overview, holdings, or allocation.',
+          'Get a comprehensive summary of the user\'s investment portfolio including holdings, allocation percentages, asset classes, current values, overall performance metrics, daily P&L (today\'s gains/losses), and per-holding daily price changes. Use this when the user asks about their portfolio overview, holdings, allocation, today\'s performance, or daily gains/losses.',
         parameters: z.object({
           withMarkets: z
             .boolean()
@@ -187,6 +187,7 @@ export class AiAgentService {
               await this.portfolioSummaryTool.execute({
                 ...args,
                 impersonationId,
+                userCurrency,
                 userId
               });
             const durationMs = Math.round(performance.now() - toolStart);
@@ -275,7 +276,7 @@ export class AiAgentService {
 
       market_context: tool({
         description:
-          'Get current market prices, currency, and market state for specific symbols. Use this when the user asks about current prices, market conditions, or wants to compare holdings to market data.',
+          'Get current market prices, daily price changes (vs previous close), currency, and market state for specific symbols. Use this when the user asks about current prices, today\'s price changes, intraday movement, market conditions, or wants to compare holdings to market data.',
         parameters: z.object({
           symbols: z
             .array(
@@ -821,7 +822,7 @@ export class AiAgentService {
     const tools = {
       portfolio_summary: tool({
         description:
-          'Get a comprehensive summary of the user\'s investment portfolio including holdings, allocation percentages, asset classes, current values, and overall performance metrics. Use this when the user asks about their portfolio overview, holdings, or allocation.',
+          'Get a comprehensive summary of the user\'s investment portfolio including holdings, allocation percentages, asset classes, current values, overall performance metrics, daily P&L (today\'s gains/losses), and per-holding daily price changes. Use this when the user asks about their portfolio overview, holdings, allocation, today\'s performance, or daily gains/losses.',
         parameters: z.object({
           withMarkets: z
             .boolean()
@@ -839,6 +840,7 @@ export class AiAgentService {
               await this.portfolioSummaryTool.execute({
                 ...args,
                 impersonationId,
+                userCurrency,
                 userId
               });
             const durationMs = Math.round(performance.now() - toolStart);
@@ -921,7 +923,7 @@ export class AiAgentService {
 
       market_context: tool({
         description:
-          'Get current market prices, currency, and market state for specific symbols. Use this when the user asks about current prices, market conditions, or wants to compare holdings to market data.',
+          'Get current market prices, daily price changes (vs previous close), currency, and market state for specific symbols. Use this when the user asks about current prices, today\'s price changes, intraday movement, market conditions, or wants to compare holdings to market data.',
         parameters: z.object({
           symbols: z
             .array(

@@ -46,33 +46,39 @@ describe('AiAgentService — Eval Suite', () => {
           `\n[Eval Persistence] Run ${runId}: ${passed}/${total} passed (${((passed / total) * 100).toFixed(1)}%)`
         );
 
-        // Check for regression against last 5 runs
-        const previousRuns = await prisma.aiAgentEvalResult.groupBy({
-          by: ['runId'],
-          _max: { createdAt: true },
-          where: { runId: { not: runId } },
-          orderBy: { _max: { createdAt: 'desc' } },
-          take: 5
-        });
+        try {
+          const previousRuns = await prisma.aiAgentEvalResult.groupBy({
+            by: ['runId'],
+            _max: { createdAt: true },
+            where: { runId: { not: runId } },
+            orderBy: { _max: { createdAt: 'desc' } },
+            take: 5
+          });
 
-        if (previousRuns.length > 0) {
-          let histPassed = 0;
-          let histTotal = 0;
-          for (const run of previousRuns) {
-            const cases = await prisma.aiAgentEvalResult.findMany({
-              where: { runId: run.runId }
-            });
-            histPassed += cases.filter((c) => c.passed).length;
-            histTotal += cases.length;
+          if (previousRuns.length > 0) {
+            let histPassed = 0;
+            let histTotal = 0;
+            for (const run of previousRuns) {
+              const cases = await prisma.aiAgentEvalResult.findMany({
+                where: { runId: run.runId }
+              });
+              histPassed += cases.filter((c) => c.passed).length;
+              histTotal += cases.length;
+            }
+            const histRate = histTotal > 0 ? (histPassed / histTotal) * 100 : 0;
+            const currentRate = (passed / total) * 100;
+            const drop = histRate - currentRate;
+            if (drop > 5) {
+              console.warn(
+                `[Eval Regression] Pass rate dropped ${drop.toFixed(1)}%: ${histRate.toFixed(1)}% -> ${currentRate.toFixed(1)}%`
+              );
+            }
           }
-          const histRate = histTotal > 0 ? (histPassed / histTotal) * 100 : 0;
-          const currentRate = (passed / total) * 100;
-          const drop = histRate - currentRate;
-          if (drop > 5) {
-            console.warn(
-              `[Eval Regression] Pass rate dropped ${drop.toFixed(1)}%: ${histRate.toFixed(1)}% -> ${currentRate.toFixed(1)}%`
-            );
-          }
+        } catch (regressionErr: unknown) {
+          console.warn(
+            '[Eval Persistence] Regression check failed:',
+            (regressionErr as Error)?.message
+          );
         }
 
         await prisma.$disconnect();
@@ -186,6 +192,7 @@ describe('AiAgentService — Eval Suite', () => {
       });
     });
 
+    // Thresholds (0.7, 0.8) must match VerificationService.assessConfidence defaults
     it('should assess high confidence when tools are called', () => {
       const startTime = performance.now();
       const confidence = verificationService.assessConfidence(3, false, 500);
@@ -341,6 +348,7 @@ describe('AiAgentService — Eval Suite', () => {
       expect(categories.has('allocation')).toBe(true);
       expect(categories.has('multi-tool')).toBe(true);
       expect(categories.has('adversarial')).toBe(true);
+      expect(categories.has('intraday')).toBe(true);
     });
 
     it('should have at least 10 adversarial cases', () => {
@@ -403,6 +411,25 @@ describe('AiAgentService — Eval Suite', () => {
         expect(tc.expectedTools).toContain('tax_estimator');
       }
     });
+
+    it('should have at least 8 intraday cases', () => {
+      const intraday = evalCases.filter(
+        (c) => c.category === 'intraday'
+      );
+      expect(intraday.length).toBeGreaterThanOrEqual(8);
+    });
+
+    it('intraday cases should expect market_context or portfolio_summary', () => {
+      const intraday = evalCases.filter(
+        (c) => c.category === 'intraday'
+      );
+      for (const tc of intraday) {
+        const hasExpectedTool =
+          tc.expectedTools.includes('market_context') ||
+          tc.expectedTools.includes('portfolio_summary');
+        expect(hasExpectedTool).toBe(true);
+      }
+    });
   });
 
   describe('Adversarial Input Patterns', () => {
@@ -431,22 +458,19 @@ describe('AiAgentService — Eval Suite', () => {
     });
 
     it('should include cross-user data requests', () => {
-      const crossUser = adversarialInputs.filter(
-        (c) =>
-          c.input.toLowerCase().includes('other user') ||
-          c.input.toLowerCase().includes('user') ||
-          c.input.toLowerCase().includes('someone else')
+      const crossUserPattern =
+        /other\s+user|someone\s+else'?s?|another\s+user'?s?|\w+'s\s+(portfolio|data)|access\s+.*(portfolio|user)|their\s+(portfolio|data|holdings)/i;
+      const crossUser = adversarialInputs.filter((c) =>
+        crossUserPattern.test(c.input)
       );
       expect(crossUser.length).toBeGreaterThanOrEqual(1);
     });
 
     it('should include write operation requests', () => {
-      const writeOps = adversarialInputs.filter(
-        (c) =>
-          c.input.toLowerCase().includes('delete') ||
-          c.input.toLowerCase().includes('modify') ||
-          c.input.toLowerCase().includes('update') ||
-          c.input.toLowerCase().includes('create')
+      const writeOpsPattern =
+        /delete\s+.*(my|the|account|data)|modify\s+.*(my|holdings|portfolio)|update\s+my\s+portfolio|(create|execute)\s+.*(order|trade|transaction)/i;
+      const writeOps = adversarialInputs.filter((c) =>
+        writeOpsPattern.test(c.input)
       );
       expect(writeOps.length).toBeGreaterThanOrEqual(1);
     });
