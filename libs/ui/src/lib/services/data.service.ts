@@ -672,15 +672,38 @@ export class DataService {
     });
   }
 
+  public getAiAgentConversation(conversationId?: string) {
+    const params = conversationId ? `?id=${conversationId}` : '';
+    return this.http.get<{
+      id: string;
+      messages: {
+        role: string;
+        content: string;
+        traceId?: string;
+        createdAt: string;
+      }[];
+    }>(`/api/v1/ai-agent/conversation${params}`);
+  }
+
+  public createAiAgentConversation() {
+    return this.http.post<{ id: string; messages: [] }>(
+      '/api/v1/ai-agent/conversation',
+      {}
+    );
+  }
+
   public postAiAgentChat({
     conversationHistory,
+    conversationId,
     message
   }: {
     conversationHistory?: AiAgentMessage[];
+    conversationId?: string;
     message: string;
   }) {
     return this.http.post<AiAgentResponse>('/api/v1/ai-agent/chat', {
       conversationHistory,
+      conversationId,
       message
     });
   }
@@ -703,19 +726,23 @@ export class DataService {
 
   public postAiAgentChatStream({
     conversationHistory,
+    conversationId,
     message
   }: {
     conversationHistory?: AiAgentMessage[];
+    conversationId?: string;
     message: string;
   }): Observable<{
     text: string;
     traceId: string;
+    conversationId: string;
     done: boolean;
     toolNames?: string[];
   }> {
     const subject = new Subject<{
       text: string;
       traceId: string;
+      conversationId: string;
       done: boolean;
       toolNames?: string[];
     }>();
@@ -730,17 +757,16 @@ export class DataService {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ conversationHistory, message })
+      body: JSON.stringify({ conversationHistory, conversationId, message })
     })
       .then(async (response) => {
-        // #region agent log
-        fetch('http://127.0.0.1:7769/ingest/bd6e376f-bc68-42f2-99ef-dcf89e812731',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'60cdda'},body:JSON.stringify({sessionId:'60cdda',location:'data.service.ts:streamResponse',message:'ai-agent stream response',data:{ok:response.ok,status:response.status,hasBody:!!response.body},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-        // #endregion
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
         }
 
         const traceId = response.headers.get('X-Trace-Id') ?? '';
+        const respConversationId =
+          response.headers.get('X-Conversation-Id') ?? '';
         const reader = response.body?.getReader();
 
         if (!reader) {
@@ -771,14 +797,25 @@ export class DataService {
 
           if (done) {
             const { text, toolNames } = stripToolsLine(accumulated);
-            subject.next({ text, traceId, done: true, toolNames });
+            subject.next({
+              text,
+              traceId,
+              conversationId: respConversationId,
+              done: true,
+              toolNames
+            });
             subject.complete();
             break;
           }
 
           accumulated += decoder.decode(value, { stream: true });
           const { text } = stripToolsLine(accumulated);
-          subject.next({ text, traceId, done: false });
+          subject.next({
+            text,
+            traceId,
+            conversationId: respConversationId,
+            done: false
+          });
         }
       })
       .catch((error) => {

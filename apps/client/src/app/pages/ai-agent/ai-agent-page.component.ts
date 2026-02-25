@@ -6,7 +6,13 @@ import type {
 import { DataService } from '@ghostfolio/ui/services';
 
 import { CommonModule } from '@angular/common';
-import { ChangeDetectorRef, Component, NgZone, OnDestroy } from '@angular/core';
+import {
+  ChangeDetectorRef,
+  Component,
+  NgZone,
+  OnDestroy,
+  OnInit
+} from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -304,9 +310,25 @@ interface ChatMessage {
   ],
   template: `
     <div class="chat-container">
-      <h1 i18n>AI Agent</h1>
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <h1 i18n>AI Agent</h1>
+        <button
+          mat-button
+          (click)="newConversation()"
+          [disabled]="isLoading"
+          i18n
+        >
+          New Conversation
+        </button>
+      </div>
 
       <div class="messages">
+        @if (isLoadingConversation) {
+          <div class="loading">
+            <mat-spinner diameter="20"></mat-spinner>
+            <span i18n>Loading conversation...</span>
+          </div>
+        }
         @for (msg of messages; track msg.timestamp) {
           <div class="message" [class]="msg.role">
             @if (msg.role === 'assistant' && msg.contentHtml) {
@@ -472,8 +494,10 @@ interface ChatMessage {
     </div>
   `
 })
-export class GfAiAgentPageComponent implements OnDestroy {
+export class GfAiAgentPageComponent implements OnInit, OnDestroy {
+  public conversationId: string | null = null;
   public isLoading = false;
+  public isLoadingConversation = true;
   public messages: ChatMessage[] = [];
   public userMessage = '';
 
@@ -485,6 +509,28 @@ export class GfAiAgentPageComponent implements OnDestroy {
     private ngZone: NgZone,
     private sanitizer: DomSanitizer
   ) {}
+
+  public ngOnInit() {
+    this.loadConversation();
+  }
+
+  public newConversation() {
+    this.dataService
+      .createAiAgentConversation()
+      .pipe(takeUntil(this.unsubscribeSubject))
+      .subscribe({
+        next: (conversation) => {
+          this.conversationId = conversation.id;
+          this.messages = [];
+          this.changeDetectorRef.markForCheck();
+        },
+        error: () => {
+          // Fall back to in-memory only
+          this.conversationId = null;
+          this.messages = [];
+        }
+      });
+  }
 
   public sendMessage() {
     const message = this.userMessage?.trim();
@@ -501,13 +547,14 @@ export class GfAiAgentPageComponent implements OnDestroy {
     this.userMessage = '';
     this.isLoading = true;
 
-    const conversationHistory: AiAgentMessage[] = this.messages
-      .slice(0, -1)
-      .map((m) => ({
-        role: m.role,
-        content: m.content,
-        timestamp: m.timestamp
-      }));
+    // When we have a conversationId, server loads history from DB
+    const conversationHistory: AiAgentMessage[] = this.conversationId
+      ? []
+      : this.messages.slice(0, -1).map((m) => ({
+          role: m.role,
+          content: m.content,
+          timestamp: m.timestamp
+        }));
 
     const assistantMessage: ChatMessage = {
       role: 'assistant',
@@ -517,10 +564,14 @@ export class GfAiAgentPageComponent implements OnDestroy {
     this.messages.push(assistantMessage);
 
     this.dataService
-      .postAiAgentChatStream({ conversationHistory, message })
+      .postAiAgentChatStream({
+        conversationHistory,
+        conversationId: this.conversationId ?? undefined,
+        message
+      })
       .pipe(takeUntil(this.unsubscribeSubject))
       .subscribe({
-        next: ({ text, traceId, done, toolNames }) => {
+        next: ({ text, traceId, conversationId: respConvId, done, toolNames }) => {
           this.ngZone.run(() => {
             assistantMessage.content = text;
             assistantMessage.contentHtml =
@@ -531,6 +582,9 @@ export class GfAiAgentPageComponent implements OnDestroy {
             if (done) {
               assistantMessage.traceId = traceId;
               assistantMessage.feedbackGiven = null;
+              if (respConvId && !this.conversationId) {
+                this.conversationId = respConvId;
+              }
               if (toolNames?.length) {
                 assistantMessage.toolCalls = toolNames.map((toolName) => ({
                   toolName,
@@ -607,5 +661,41 @@ export class GfAiAgentPageComponent implements OnDestroy {
   public ngOnDestroy() {
     this.unsubscribeSubject.next();
     this.unsubscribeSubject.complete();
+  }
+
+  private loadConversation() {
+    this.isLoadingConversation = true;
+
+    this.dataService
+      .getAiAgentConversation()
+      .pipe(takeUntil(this.unsubscribeSubject))
+      .subscribe({
+        next: (conversation) => {
+          this.conversationId = conversation.id;
+
+          if (conversation.messages?.length) {
+            this.messages = conversation.messages.map((m) => ({
+              role: m.role as 'user' | 'assistant',
+              content: m.content,
+              contentHtml:
+                m.role === 'assistant'
+                  ? this.sanitizer.bypassSecurityTrustHtml(
+                      marked(m.content) as string
+                    )
+                  : undefined,
+              timestamp: m.createdAt,
+              traceId: m.traceId ?? undefined,
+              feedbackGiven: m.traceId ? null : undefined
+            }));
+          }
+
+          this.isLoadingConversation = false;
+          this.changeDetectorRef.markForCheck();
+        },
+        error: () => {
+          this.isLoadingConversation = false;
+          this.changeDetectorRef.markForCheck();
+        }
+      });
   }
 }

@@ -7,9 +7,11 @@ import { permissions } from '@ghostfolio/common/permissions';
 import {
   Body,
   Controller,
+  Get,
   Inject,
   Logger,
   Post,
+  Query,
   Res,
   UseGuards
 } from '@nestjs/common';
@@ -32,14 +34,42 @@ export class AiAgentController {
   ) {}
 
   @HasPermission(permissions.accessAiAgent)
+  @Get('conversation')
+  @UseGuards(AuthGuard('jwt'), HasPermissionGuard)
+  public async getConversation(
+    @Query('id') conversationId?: string
+  ) {
+    const userId = this.request.user.id;
+
+    if (conversationId) {
+      return this.aiAgentService.getConversation(
+        conversationId,
+        userId
+      );
+    }
+
+    return this.aiAgentService.getOrCreateActiveConversation(userId);
+  }
+
+  @HasPermission(permissions.accessAiAgent)
+  @Post('conversation')
+  @UseGuards(AuthGuard('jwt'), HasPermissionGuard)
+  public async createConversation() {
+    const userId = this.request.user.id;
+    return this.aiAgentService.createConversation(userId);
+  }
+
+  @HasPermission(permissions.accessAiAgent)
   @Post('chat')
   @Throttle({ chat: { ttl: 60_000, limit: 10 } })
   @UseGuards(AuthGuard('jwt'), HasPermissionGuard, ThrottlerGuard)
   public async chat(
-    @Body() { conversationHistory, message }: AiAgentChatDto
+    @Body()
+    { conversationHistory, conversationId, message }: AiAgentChatDto
   ): Promise<AiAgentResponse> {
     return this.aiAgentService.chat({
       conversationHistory,
+      conversationId,
       message
     });
   }
@@ -49,21 +79,28 @@ export class AiAgentController {
   @Throttle({ chat: { ttl: 60_000, limit: 10 } })
   @UseGuards(AuthGuard('jwt'), HasPermissionGuard, ThrottlerGuard)
   public async chatStream(
-    @Body() { conversationHistory, message }: AiAgentChatDto,
+    @Body()
+    { conversationHistory, conversationId, message }: AiAgentChatDto,
     @Res() res: Response
   ) {
-    const { result, traceId, toolNamesPromise } =
-      await this.aiAgentService.chatStream({
-        conversationHistory,
-        message
-      });
+    const {
+      result,
+      traceId,
+      toolNamesPromise,
+      conversationId: activeConversationId
+    } = await this.aiAgentService.chatStream({
+      conversationHistory,
+      conversationId,
+      message
+    });
 
     res.writeHead(200, {
       'Content-Type': 'text/plain; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       'X-Accel-Buffering': 'no',
       'Connection': 'keep-alive',
-      'X-Trace-Id': traceId
+      'X-Trace-Id': traceId,
+      'X-Conversation-Id': activeConversationId
     });
 
     try {

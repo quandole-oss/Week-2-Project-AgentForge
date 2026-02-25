@@ -9,4 +9,8 @@ export class AiAgentChatDto {
   @IsArray()
   @IsOptional()
   conversationHistory?: AiAgentMessage[];
+
+  @IsString()
+  @IsOptional()
+  conversationId?: string;
 }

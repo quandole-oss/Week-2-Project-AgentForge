@@ -66,3 +66,22 @@
 - [x] Add `fix-client-path` script for quoted folder name workaround
 - [x] Add `CLAUDE.md` project instructions
 - [x] Add Langfuse env placeholders to `.env.dev`
+
+## Phase 11: Conversation Persistence (Memory System)
+- [x] Add `AiAgentConversation` and `AiAgentConversationMessage` Prisma models
+- [x] Add relation `aiAgentConversations` to `User` model
+- [x] Create database migration (`20260224200000_add_ai_agent_conversation_persistence`)
+- [x] Add `getOrCreateActiveConversation()`, `getConversation()`, `createConversation()`, `appendMessages()` service methods
+- [x] Persist user + assistant messages in `chatStream` `onFinish` callback
+- [x] Add `GET /ai-agent/conversation` endpoint (get or create active conversation)
+- [x] Add `POST /ai-agent/conversation` endpoint (create new conversation)
+- [x] Add optional `conversationId` to `AiAgentChatDto`
+- [x] Return `X-Conversation-Id` header from stream endpoint
+- [x] Replace hardcoded `slice(-10)` with configurable `AI_AGENT_MAX_CONTEXT_MESSAGES` (default 20)
+- [x] Load context from DB when `conversationId` provided, fall back to client history
+- [x] Frontend: load conversation on page init via `GET /ai-agent/conversation`
+- [x] Frontend: send `conversationId` with stream requests
+- [x] Frontend: "New Conversation" button
+- [x] Frontend: loading state while fetching conversation
+- [x] Remove debug logging snippet from `data.service.ts`
+- [x] Add `AI_AGENT_MAX_CONTEXT_MESSAGES` to `.env.dev`

@@ -36,6 +36,10 @@ const HAIKU_INPUT_COST_PER_TOKEN = 0.8 / 1_000_000;
 const HAIKU_OUTPUT_COST_PER_TOKEN = 4.0 / 1_000_000;
 
 const DAILY_COST_CAP = 5.0; // $5/day cap
+const MAX_CONTEXT_MESSAGES = parseInt(
+  process.env.AI_AGENT_MAX_CONTEXT_MESSAGES ?? '20',
+  10
+);
 
 const SYSTEM_PROMPT = `You are a read-only financial portfolio assistant for Ghostfolio. You help users understand their portfolio, holdings, transactions, taxes, compliance, and allocation.
 
@@ -73,9 +77,11 @@ export class AiAgentService {
 
   public async chat({
     conversationHistory = [],
+    conversationId,
     message
   }: {
     conversationHistory?: AiAgentMessage[];
+    conversationId?: string;
     message: string;
   }): Promise<AiAgentResponse> {
     const isEnabled = this.configurationService.get(
@@ -132,8 +138,26 @@ export class AiAgentService {
 
     const anthropic = createAnthropic({ apiKey });
 
+    // Load context from DB if conversationId provided, else fall back to client history
+    let contextHistory = conversationHistory;
+
+    if (conversationId) {
+      const conversation = await this.getConversation(
+        conversationId,
+        userId
+      );
+
+      if (conversation?.messages?.length) {
+        contextHistory = conversation.messages.map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+          timestamp: m.createdAt.toISOString()
+        }));
+      }
+    }
+
     const messages = [
-      ...conversationHistory.slice(-10).map((msg) => ({
+      ...contextHistory.slice(-MAX_CONTEXT_MESSAGES).map((msg) => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.content
       })),
@@ -692,9 +716,11 @@ export class AiAgentService {
 
   public async chatStream({
     conversationHistory = [],
+    conversationId,
     message
   }: {
     conversationHistory?: AiAgentMessage[];
+    conversationId?: string;
     message: string;
   }) {
     const isEnabled = this.configurationService.get(
@@ -751,8 +777,35 @@ export class AiAgentService {
 
     const anthropic = createAnthropic({ apiKey });
 
+    // Load context from DB if conversationId provided, else fall back to client history
+    let contextHistory = conversationHistory;
+
+    if (conversationId) {
+      const conversation = await this.getConversation(
+        conversationId,
+        userId
+      );
+
+      if (conversation?.messages?.length) {
+        contextHistory = conversation.messages.map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+          timestamp: m.createdAt.toISOString()
+        }));
+      }
+    }
+
+    // Ensure we have a conversation to persist to
+    let activeConversationId = conversationId;
+
+    if (!activeConversationId) {
+      const conv =
+        await this.getOrCreateActiveConversation(userId);
+      activeConversationId = conv.id;
+    }
+
     const messages = [
-      ...conversationHistory.slice(-10).map((msg) => ({
+      ...contextHistory.slice(-MAX_CONTEXT_MESSAGES).map((msg) => ({
         role: msg.role as 'user' | 'assistant',
         content: msg.content
       })),
@@ -1153,6 +1206,16 @@ export class AiAgentService {
           });
 
           await this.telemetryService.flush();
+
+          // Persist user + assistant messages to conversation
+          if (activeConversationId && text) {
+            await this.appendMessages({
+              conversationId: activeConversationId,
+              userContent: message,
+              assistantContent: text,
+              traceId
+            });
+          }
         } catch (err) {
           this.logger.warn(
             `[${traceId}] Stream onFinish telemetry failed: ${err.message}`
@@ -1163,7 +1226,12 @@ export class AiAgentService {
       }
     });
 
-    return { result, traceId, toolNamesPromise };
+    return {
+      result,
+      traceId,
+      toolNamesPromise,
+      conversationId: activeConversationId
+    };
   }
 
   public async submitFeedback({
@@ -1206,5 +1274,91 @@ export class AiAgentService {
     });
 
     return feedback;
+  }
+
+  public async getOrCreateActiveConversation(userId: string) {
+    const existing =
+      await this.prismaService.aiAgentConversation.findFirst({
+        where: { userId },
+        orderBy: { updatedAt: 'desc' },
+        include: {
+          messages: {
+            orderBy: { createdAt: 'asc' }
+          }
+        }
+      });
+
+    if (existing) {
+      return existing;
+    }
+
+    return this.prismaService.aiAgentConversation.create({
+      data: { userId },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' }
+        }
+      }
+    });
+  }
+
+  public async getConversation(conversationId: string, userId: string) {
+    return this.prismaService.aiAgentConversation.findFirst({
+      where: { id: conversationId, userId },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' }
+        }
+      }
+    });
+  }
+
+  public async createConversation(userId: string, title?: string) {
+    return this.prismaService.aiAgentConversation.create({
+      data: { userId, title },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' }
+        }
+      }
+    });
+  }
+
+  public async appendMessages({
+    conversationId,
+    userContent,
+    assistantContent,
+    traceId
+  }: {
+    conversationId: string;
+    userContent: string;
+    assistantContent?: string;
+    traceId?: string;
+  }) {
+    const data = [
+      {
+        conversationId,
+        role: 'user',
+        content: userContent
+      }
+    ];
+
+    if (assistantContent) {
+      data.push({
+        conversationId,
+        role: 'assistant',
+        content: assistantContent,
+        ...(traceId ? { traceId } : {})
+      } as any);
+    }
+
+    await this.prismaService.aiAgentConversationMessage.createMany({
+      data
+    });
+
+    await this.prismaService.aiAgentConversation.update({
+      where: { id: conversationId },
+      data: { updatedAt: new Date() }
+    });
   }
 }
