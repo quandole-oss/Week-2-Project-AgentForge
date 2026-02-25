@@ -5,12 +5,21 @@ describe('MarketContextTool', () => {
   let mockDataProviderService: {
     getQuotes: jest.Mock;
   };
+  let mockMarketDataService: {
+    getRange: jest.Mock;
+  };
 
   beforeEach(() => {
     mockDataProviderService = {
       getQuotes: jest.fn()
     };
-    tool = new MarketContextTool(mockDataProviderService as any);
+    mockMarketDataService = {
+      getRange: jest.fn().mockResolvedValue([])
+    };
+    tool = new MarketContextTool(
+      mockDataProviderService as any,
+      mockMarketDataService as any
+    );
   });
 
   it('should return quotes for requested symbols', async () => {

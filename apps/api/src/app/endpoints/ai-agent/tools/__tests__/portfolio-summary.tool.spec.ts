@@ -5,11 +5,18 @@ describe('PortfolioSummaryTool', () => {
   let mockPortfolioService: {
     getDetails: jest.Mock;
   };
+  let mockMarketDataService: {
+    getRange: jest.Mock;
+  };
+  let mockExchangeRateDataService: {
+    toCurrency: jest.Mock;
+  };
 
   const makeHolding = (overrides: Record<string, unknown> = {}) => ({
     name: 'Apple Inc.',
     symbol: 'AAPL',
     currency: 'USD',
+    dataSource: 'YAHOO',
     assetClass: 'EQUITY',
     assetSubClass: 'STOCK',
     allocationInPercentage: 0.35,
@@ -84,7 +91,17 @@ describe('PortfolioSummaryTool', () => {
     mockPortfolioService = {
       getDetails: jest.fn()
     };
-    tool = new PortfolioSummaryTool(mockPortfolioService as any);
+    mockMarketDataService = {
+      getRange: jest.fn().mockResolvedValue([])
+    };
+    mockExchangeRateDataService = {
+      toCurrency: jest.fn().mockImplementation((value) => value)
+    };
+    tool = new PortfolioSummaryTool(
+      mockExchangeRateDataService as any,
+      mockMarketDataService as any,
+      mockPortfolioService as any
+    );
   });
 
   it('should return holdings sorted by allocation in descending order', async () => {
