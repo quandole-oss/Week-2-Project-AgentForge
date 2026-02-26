@@ -56,7 +56,7 @@ describe('HallucinationDetector', () => {
       expect(result.shouldWarn).toBe(false);
     });
 
-    it('should set shouldWarn when score > 0.05', () => {
+    it('should set shouldWarn when score > 0.03', () => {
       const response =
         'Your portfolio returned 99.9% this year. It also returned 88.8% last year.';
       const toolResults = [{ returnPercent: 15.3 }];
@@ -64,19 +64,19 @@ describe('HallucinationDetector', () => {
       const result = detector.check(response, toolResults);
 
       // Both claims should be ungrounded
-      if (result.totalClaims > 0 && result.score > 0.05) {
+      if (result.totalClaims > 0 && result.score > 0.03) {
         expect(result.shouldWarn).toBe(true);
       }
     });
 
-    it('should set shouldRegenerate when score > 0.1', () => {
+    it('should set shouldRegenerate when score > 0.05', () => {
       const response =
         'You have $5,000,000 in your portfolio with 200% gains.';
       const toolResults = [{ totalValue: 100000, returnPercent: 15.3 }];
 
       const result = detector.check(response, toolResults);
 
-      if (result.totalClaims > 0 && result.score > 0.1) {
+      if (result.totalClaims > 0 && result.score > 0.05) {
         expect(result.shouldRegenerate).toBe(true);
       }
     });

@@ -506,6 +506,7 @@ export class AiAgentService {
           input: messages
         });
 
+        const llmStartTime = performance.now();
         const result = await generateText({
           model: anthropic('claude-haiku-4-5-20251001'),
           system: SYSTEM_PROMPT,
@@ -523,6 +524,7 @@ export class AiAgentService {
             }
           }
         });
+        const llmTotalMs = Math.round(performance.now() - llmStartTime);
 
         // Step 1: Extract token usage from result
         usage = {
@@ -642,6 +644,21 @@ export class AiAgentService {
 
       AiAgentService.dailyCostTracker.totalCost += cost;
 
+      // Compute LLM latency by subtracting tool execution time
+      const totalToolMs = toolCallsLog.reduce(
+        (sum, t) => sum + (t.durationMs ?? 0),
+        0
+      );
+      const llmLatencyMs = Math.max(0, llmTotalMs - totalToolMs);
+
+      // Report LLM latency to Langfuse
+      this.telemetryService.reportLangfuseScore({
+        traceId,
+        name: 'llm-latency-ms',
+        value: llmLatencyMs,
+        comment: `LLM: ${llmLatencyMs}ms, Tools: ${totalToolMs}ms, Total: ${llmTotalMs}ms`
+      });
+
       // Structured telemetry via TelemetryService
       this.telemetryService.logRequest({
         type: 'ai_agent_telemetry',
@@ -654,6 +671,7 @@ export class AiAgentService {
           name: t.toolName,
           durationMs: t.durationMs ?? 0
         })),
+        llmLatencyMs,
         steps: stepsCount,
         confidence,
         tokensUsed: {
@@ -1137,6 +1155,7 @@ export class AiAgentService {
       input: messages
     });
 
+    const streamLlmStartTime = performance.now();
     const result = streamText({
       model: anthropic('claude-haiku-4-5-20251001'),
       system: SYSTEM_PROMPT,
@@ -1155,6 +1174,9 @@ export class AiAgentService {
       },
       onFinish: async ({ text, usage: finishUsage }) => {
         let lastHallucinationScore: number | undefined;
+        const streamTotalMs = Math.round(
+          performance.now() - streamLlmStartTime
+        );
 
         try {
           const duration =
@@ -1203,6 +1225,23 @@ export class AiAgentService {
             toolCallCount: toolCallsLog.length
           });
 
+          // Compute LLM latency by subtracting tool execution time
+          const streamToolMs = toolCallsLog.reduce(
+            (sum, t) => sum + (t.durationMs ?? 0),
+            0
+          );
+          const streamLlmLatencyMs = Math.max(
+            0,
+            streamTotalMs - streamToolMs
+          );
+
+          this.telemetryService.reportLangfuseScore({
+            traceId,
+            name: 'llm-latency-ms',
+            value: streamLlmLatencyMs,
+            comment: `LLM: ${streamLlmLatencyMs}ms, Tools: ${streamToolMs}ms, Total: ${streamTotalMs}ms`
+          });
+
           const cost =
             promptTokens * HAIKU_INPUT_COST_PER_TOKEN +
             completionTokens * HAIKU_OUTPUT_COST_PER_TOKEN;
@@ -1220,6 +1259,7 @@ export class AiAgentService {
               name: t.toolName,
               durationMs: t.durationMs ?? 0
             })),
+            llmLatencyMs: streamLlmLatencyMs,
             steps: 1,
             confidence,
             tokensUsed: {

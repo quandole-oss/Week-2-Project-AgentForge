@@ -17,6 +17,7 @@ export interface AiAgentTelemetryEntry {
   toolCalls: string[];
   toolCallCount: number;
   toolTimings: { name: string; durationMs: number }[];
+  llmLatencyMs?: number;
   steps: number;
   confidence: number;
   tokensUsed?: {

@@ -39,8 +39,8 @@ export class HallucinationDetector {
       flaggedClaims,
       groundedClaims,
       totalClaims,
-      shouldRegenerate: score > 0.1,
-      shouldWarn: score > 0.05
+      shouldRegenerate: score > 0.05,
+      shouldWarn: score > 0.03
     };
 
     if (result.shouldWarn) {
