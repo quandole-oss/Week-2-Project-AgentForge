@@ -855,9 +855,15 @@ export class DataService {
           }
 
           accumulated += decoder.decode(value, { stream: true });
-          const { text } = stripMetaLine(accumulated);
+          // For intermediate chunks, strip any trailing __META__ fragment
+          // without parsing — partial JSON would fail and leak into the UI
+          const metaIdx = accumulated.indexOf('\n__META__:');
+          const displayText =
+            metaIdx >= 0
+              ? accumulated.slice(0, metaIdx).trimEnd()
+              : accumulated;
           subject.next({
-            text,
+            text: displayText,
             traceId,
             conversationId: respConversationId,
             done: false

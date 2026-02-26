@@ -175,6 +175,13 @@ interface ChatMessage {
         padding: 0.25rem 0.5rem;
       }
 
+      .disclaimers-summary {
+        font-size: 0.8rem;
+        cursor: pointer;
+        opacity: 0.8;
+        font-weight: 500;
+      }
+
       .contextual-disclaimer {
         font-size: 0.8rem;
         font-style: italic;
@@ -387,7 +394,7 @@ interface ChatMessage {
                     @if (tc.result) {
                       <details>
                         <summary>Result</summary>
-                        <pre class="tool-result">{{ tc.result | json }}</pre>
+                        <pre class="tool-result">{{ truncateResult(tc.result) }}</pre>
                       </details>
                     }
                   </div>
@@ -411,11 +418,12 @@ interface ChatMessage {
             }
 
             @if (msg.disclaimers?.length) {
-              <div class="contextual-disclaimers">
+              <details class="contextual-disclaimers">
+                <summary class="disclaimers-summary">Notes ({{ msg.disclaimers.length }})</summary>
                 @for (d of msg.disclaimers; track d) {
                   <div class="contextual-disclaimer">{{ d }}</div>
                 }
-              </div>
+              </details>
             }
 
             @if (msg.confidence !== undefined) {
@@ -700,6 +708,16 @@ export class GfAiAgentPageComponent implements OnInit, OnDestroy {
           // Silently fail
         }
       });
+  }
+
+  public truncateResult(result: unknown): string {
+    const json = JSON.stringify(result, null, 2);
+
+    if (json.length <= 500) {
+      return json;
+    }
+
+    return json.slice(0, 500) + '\n...';
   }
 
   public getConfidenceColor(confidence: number): string {
