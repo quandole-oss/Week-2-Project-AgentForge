@@ -500,6 +500,7 @@ export class AiAgentService {
         completionTokens: 0
       };
       let lastHallucinationScore: number | undefined;
+      let llmTotalMs = 0;
 
       for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         if (attempt > 0) {
@@ -534,7 +535,7 @@ export class AiAgentService {
             }
           }
         });
-        const llmTotalMs = Math.round(performance.now() - llmStartTime);
+        llmTotalMs = Math.round(performance.now() - llmStartTime);
 
         // Step 1: Extract token usage from result
         usage = {
