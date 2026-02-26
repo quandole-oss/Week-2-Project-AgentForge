@@ -113,7 +113,7 @@ curl -X POST http://localhost:3333/api/v1/ai-agent/chat \
 |------|-------------|-------------------|
 | `portfolio_summary` | Holdings, allocation, performance, summary stats | `PortfolioService.getDetails()` |
 | `transaction_analyzer` | Activity counts by type/month, fees, date ranges | `OrderService.getOrders()` |
-| `market_context` | Current prices, currency, market state | `DataProviderService.getQuotes()` |
+| `market_context` | Current prices, currency, market state; auto-resolves crypto tickers (BTC, ETH, SOL, etc.) to CoinGecko IDs | `DataProviderService.getQuotes()` |
 | `tax_estimator` | FIFO capital gains estimation | `OrderService.getOrders()` + FIFO logic |
 | `compliance_checker` | Concentration, diversification, currency checks | `PortfolioService.getDetails()` |
 | `allocation_optimizer` | Target allocation drift, rebalance suggestions | `PortfolioService.getDetails()` |
@@ -146,6 +146,8 @@ The system prompt is designed to work with the **current pipeline**: the model r
 
 **Disclaimer handling:** The backend always enforces disclaimers via `VerificationService.enforceDisclaimer()` (regex check + append if missing) and attaches contextual disclaimers per tool. The prompt tells the model when to use light vs strict *tone* (e.g. refuse + pivot for advice); the actual disclaimer text and per-tool caveats are applied server-side.
 
+**Crypto guidance in prompt:** The system prompt includes a `CRYPTOCURRENCY` section that tells the model to use `market_context` with `dataSource: "COINGECKO"` for crypto queries, lists common ticker-to-CoinGecko-ID mappings, and instructs the model to check top coins (bitcoin, ethereum, solana) for general crypto questions.
+
 **UX directives in prompt:** Lead with insights when context exists; progressive disclosure (one strong analysis at a time for open-ended questions, multiple tools when the user asks for a full review); no capability menus.
 
 Future work could introduce structured output (e.g. intent + suggested UI trigger) if the API and frontend are extended to parse and render it.
@@ -158,9 +160,9 @@ npx jest --config apps/api/jest.config.ts --testPathPatterns='ai-agent.*spec'
 ```
 
 **Test coverage:**
-- 59 unit tests (portfolio summary, transaction analyzer, compliance checker, verification service)
+- 68 unit tests (portfolio summary, transaction analyzer, compliance checker, verification service, market context symbol resolution)
 - 25 integration/eval tests (verification, hallucination detection, eval case validation)
-- 69 eval cases (portfolio, transactions, market, tax, compliance, allocation, multi-tool, adversarial, edge-case)
+- 129 eval cases (portfolio, transactions, market, tax, compliance, allocation, multi-tool, adversarial, edge-case, intraday, crypto)
 - Performance target assertions (6 metrics: pass rate, hallucination rate, verification accuracy, tool success rate, single-tool latency, multi-step latency)
 
 ## File Structure
@@ -182,6 +184,7 @@ apps/api/src/app/endpoints/ai-agent/
 │   └── __tests__/
 │       ├── portfolio-summary.tool.spec.ts
 │       ├── transaction-analyzer.tool.spec.ts
+│       ├── market-context.tool.spec.ts
 │       ├── compliance-checker.tool.spec.ts
 │       └── verification.service.spec.ts
 ├── verification/
@@ -190,7 +193,7 @@ apps/api/src/app/endpoints/ai-agent/
 ├── telemetry/
 │   └── telemetry.service.ts
 └── __tests__/
-    ├── eval-cases.ts               # 69 eval test cases
+    ├── eval-cases.ts               # 129 eval test cases
     ├── ai-agent.eval.spec.ts       # Integration tests
     └── performance-targets.spec.ts # Performance target assertions (6 metrics)
 

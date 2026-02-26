@@ -130,3 +130,12 @@
 - [x] Add LLM vs tool latency isolation (`llmLatencyMs`) in `ai-agent.service.ts`
 - [x] Add `llmLatencyMs` to `AiAgentTelemetryEntry` interface
 - [x] Report `llm-latency-ms` to Langfuse as a separate score
+
+## Phase 16: Crypto Symbol Resolution
+- [x] Add `CRYPTO_SYMBOL_MAP` constant mapping ~20 common crypto tickers/names to CoinGecko IDs
+- [x] Add `resolveSymbol()` helper with case-insensitive matching and auto `COINGECKO` dataSource
+- [x] Update `MarketContextTool.execute()` to resolve symbols before passing to data provider
+- [x] Add `CRYPTOCURRENCY` section to system prompt with crypto guidance and ticker mappings
+- [x] Update `market_context` tool description (both `chat` and `chatStream`) to mention crypto support
+- [x] Add 5 crypto eval cases (`crypto-001` through `crypto-005`)
+- [x] Add 9 symbol resolution unit tests (`resolveSymbol` + integration tests)
