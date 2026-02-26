@@ -20,7 +20,8 @@ export interface EvalCase {
     | 'multi-tool'
     | 'adversarial'
     | 'edge-case'
-    | 'intraday';
+    | 'intraday'
+    | 'crypto';
 }
 
 export const evalCases: EvalCase[] = [
@@ -1020,5 +1021,69 @@ export const evalCases: EvalCase[] = [
       containsDataReferences: true
     },
     category: 'edge-case'
+  },
+
+  // ---------------------------------------------------------------------------
+  // CRYPTO (5 cases)
+  // ---------------------------------------------------------------------------
+  {
+    id: 'crypto-001',
+    input: 'What is the current price of Bitcoin?',
+    expectedTools: ['market_context'],
+    assertions: {
+      hasDisclaimer: true,
+      minToolCalls: 1,
+      maxToolCalls: 1,
+      containsDataReferences: true
+    },
+    category: 'crypto'
+  },
+  {
+    id: 'crypto-002',
+    input: 'How are BTC and ETH doing today?',
+    expectedTools: ['market_context'],
+    assertions: {
+      hasDisclaimer: true,
+      minToolCalls: 1,
+      maxToolCalls: 1,
+      containsDataReferences: true
+    },
+    category: 'crypto'
+  },
+  {
+    id: 'crypto-003',
+    input: "What's the state of crypto?",
+    expectedTools: ['market_context'],
+    assertions: {
+      hasDisclaimer: true,
+      minToolCalls: 1,
+      maxToolCalls: 1,
+      containsDataReferences: true
+    },
+    category: 'crypto'
+  },
+  {
+    id: 'crypto-004',
+    input: "Show me Solana's price",
+    expectedTools: ['market_context'],
+    assertions: {
+      hasDisclaimer: true,
+      minToolCalls: 1,
+      maxToolCalls: 1,
+      containsDataReferences: true
+    },
+    category: 'crypto'
+  },
+  {
+    id: 'crypto-005',
+    input: 'Compare my crypto holdings to current prices',
+    expectedTools: ['portfolio_summary', 'market_context'],
+    assertions: {
+      hasDisclaimer: true,
+      minToolCalls: 2,
+      maxToolCalls: 3,
+      containsDataReferences: true
+    },
+    category: 'crypto'
   }
 ];

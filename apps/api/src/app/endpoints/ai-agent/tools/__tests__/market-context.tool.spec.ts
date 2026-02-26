@@ -1,4 +1,8 @@
-import { MarketContextTool } from '../market-context.tool';
+import {
+  CRYPTO_SYMBOL_MAP,
+  MarketContextTool,
+  resolveSymbol
+} from '../market-context.tool';
 
 describe('MarketContextTool', () => {
   let tool: MarketContextTool;
@@ -103,7 +107,7 @@ describe('MarketContextTool', () => {
     expect(mockDataProviderService.getQuotes).toHaveBeenCalledWith({
       items: [
         { symbol: 'AAPL', dataSource: 'YAHOO' },
-        { symbol: 'BTC', dataSource: 'COINGECKO' }
+        { symbol: 'bitcoin', dataSource: 'COINGECKO' }
       ],
       useCache: true
     });
@@ -162,5 +166,148 @@ describe('MarketContextTool', () => {
     expect(mockDataProviderService.getQuotes).toHaveBeenCalledWith(
       expect.objectContaining({ useCache: true })
     );
+  });
+
+  it('should auto-resolve BTC to bitcoin with COINGECKO', async () => {
+    mockDataProviderService.getQuotes.mockResolvedValue({
+      bitcoin: {
+        currency: 'USD',
+        marketPrice: 65000,
+        marketState: 'open',
+        dataSource: 'COINGECKO'
+      }
+    });
+
+    await tool.execute({
+      symbols: [{ symbol: 'BTC', dataSource: 'COINGECKO' }]
+    });
+
+    expect(mockDataProviderService.getQuotes).toHaveBeenCalledWith({
+      items: [{ symbol: 'bitcoin', dataSource: 'COINGECKO' }],
+      useCache: true
+    });
+  });
+
+  it('should auto-resolve ETH to ethereum with COINGECKO', async () => {
+    mockDataProviderService.getQuotes.mockResolvedValue({});
+
+    await tool.execute({
+      symbols: [{ symbol: 'ETH', dataSource: 'YAHOO' }]
+    });
+
+    expect(mockDataProviderService.getQuotes).toHaveBeenCalledWith({
+      items: [{ symbol: 'ethereum', dataSource: 'COINGECKO' }],
+      useCache: true
+    });
+  });
+
+  it('should not alter stock symbols like AAPL', async () => {
+    mockDataProviderService.getQuotes.mockResolvedValue({});
+
+    await tool.execute({
+      symbols: [{ symbol: 'AAPL', dataSource: 'YAHOO' }]
+    });
+
+    expect(mockDataProviderService.getQuotes).toHaveBeenCalledWith({
+      items: [{ symbol: 'AAPL', dataSource: 'YAHOO' }],
+      useCache: true
+    });
+  });
+});
+
+describe('resolveSymbol', () => {
+  it('should resolve BTC to bitcoin with COINGECKO', () => {
+    expect(resolveSymbol({ symbol: 'BTC', dataSource: 'YAHOO' })).toEqual({
+      symbol: 'bitcoin',
+      dataSource: 'COINGECKO'
+    });
+  });
+
+  it('should resolve case-insensitively', () => {
+    expect(resolveSymbol({ symbol: 'btc', dataSource: 'YAHOO' })).toEqual({
+      symbol: 'bitcoin',
+      dataSource: 'COINGECKO'
+    });
+
+    expect(resolveSymbol({ symbol: 'Eth', dataSource: 'YAHOO' })).toEqual({
+      symbol: 'ethereum',
+      dataSource: 'COINGECKO'
+    });
+  });
+
+  it('should pass through stock symbols unchanged', () => {
+    expect(resolveSymbol({ symbol: 'AAPL', dataSource: 'YAHOO' })).toEqual({
+      symbol: 'AAPL',
+      dataSource: 'YAHOO'
+    });
+
+    expect(resolveSymbol({ symbol: 'MSFT', dataSource: 'YAHOO' })).toEqual({
+      symbol: 'MSFT',
+      dataSource: 'YAHOO'
+    });
+  });
+
+  it('should resolve full crypto names', () => {
+    expect(
+      resolveSymbol({ symbol: 'ETHEREUM', dataSource: 'COINGECKO' })
+    ).toEqual({
+      symbol: 'ethereum',
+      dataSource: 'COINGECKO'
+    });
+
+    expect(
+      resolveSymbol({ symbol: 'BITCOIN', dataSource: 'COINGECKO' })
+    ).toEqual({
+      symbol: 'bitcoin',
+      dataSource: 'COINGECKO'
+    });
+
+    expect(
+      resolveSymbol({ symbol: 'SOLANA', dataSource: 'COINGECKO' })
+    ).toEqual({
+      symbol: 'solana',
+      dataSource: 'COINGECKO'
+    });
+  });
+
+  it('should resolve all mapped tickers', () => {
+    const expectedMappings: Record<string, string> = {
+      BTC: 'bitcoin',
+      ETH: 'ethereum',
+      SOL: 'solana',
+      BNB: 'binancecoin',
+      XRP: 'ripple',
+      ADA: 'cardano',
+      DOGE: 'dogecoin',
+      AVAX: 'avalanche-2',
+      LINK: 'chainlink',
+      LTC: 'litecoin',
+      DOT: 'polkadot',
+      MATIC: 'matic-network',
+      SHIB: 'shiba-inu',
+      UNI: 'uniswap',
+      ATOM: 'cosmos',
+      XLM: 'stellar',
+      ALGO: 'algorand',
+      FTM: 'fantom',
+      NEAR: 'near'
+    };
+
+    for (const [ticker, expectedId] of Object.entries(expectedMappings)) {
+      const result = resolveSymbol({ symbol: ticker, dataSource: 'YAHOO' });
+      expect(result).toEqual({
+        symbol: expectedId,
+        dataSource: 'COINGECKO'
+      });
+    }
+  });
+
+  it('should have consistent map entries', () => {
+    expect(Object.keys(CRYPTO_SYMBOL_MAP).length).toBeGreaterThan(15);
+
+    for (const [key, value] of Object.entries(CRYPTO_SYMBOL_MAP)) {
+      expect(key).toBe(key.toUpperCase());
+      expect(value).toBe(value.toLowerCase());
+    }
   });
 });

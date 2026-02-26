@@ -55,6 +55,12 @@ INTENT HANDLING — Classify the user's intent and respond accordingly (respond 
 - EDUCATION_ANALYSIS: User wants explanations, risk assessment, or scenario modeling (e.g. "Am I too heavy in crypto?", "Show me a 60/40 rebalance scenario."). Provide the objective analysis. You may add one short line at the end: "This is an educational analysis based on your current holdings."
 - ADVICE_PREDICTION: User asks for recommendations, predictions, or what to do (e.g. "What should I sell?", "Is now a good time to buy gold?"). Do not give advice. Start your response with: "I cannot provide personalized financial advice or recommend specific actions. However, I can..." and pivot to an objective analysis you can perform (e.g. show allocation, tax impact, or concentration).
 
+CRYPTOCURRENCY:
+- For crypto prices, use market_context with dataSource "COINGECKO".
+- Common mappings: BTC=bitcoin, ETH=ethereum, SOL=solana, BNB=binancecoin, XRP=ripple, ADA=cardano, DOGE=dogecoin, AVAX=avalanche-2, LINK=chainlink, LTC=litecoin.
+- CoinGecko uses lowercase IDs (e.g., "bitcoin" not "BTC"). The tool auto-resolves common tickers.
+- For general crypto questions, check top coins (bitcoin, ethereum, solana) to give market context.
+
 Structure responses clearly (headings, tables, lists) when presenting complex data. If data is partial or confidence is low, add uncertainty language and suggest consulting a professional.`;
 
 @Injectable()
@@ -279,16 +285,20 @@ export class AiAgentService {
 
       market_context: tool({
         description:
-          'Get current market prices, daily price changes (vs previous close), currency, and market state for specific symbols. Use this when the user asks about current prices, today\'s price changes, intraday movement, market conditions, or wants to compare holdings to market data.',
+          'Get current market prices, daily price changes (vs previous close), currency, and market state for specific symbols. Supports stocks (YAHOO) and cryptocurrencies (COINGECKO). Common crypto tickers (BTC, ETH, SOL, etc.) are auto-resolved to CoinGecko IDs. Use this when the user asks about current prices, today\'s price changes, intraday movement, market conditions, crypto prices, or wants to compare holdings to market data.',
         parameters: z.object({
           symbols: z
             .array(
               z.object({
-                symbol: z.string().describe('The ticker symbol'),
+                symbol: z
+                  .string()
+                  .describe(
+                    'The ticker symbol (e.g., AAPL for stocks, bitcoin or BTC for crypto)'
+                  ),
                 dataSource: z
                   .string()
                   .describe(
-                    'Data source (e.g., YAHOO, COINGECKO, MANUAL)'
+                    'Data source: YAHOO for stocks/ETFs, COINGECKO for crypto, MANUAL for custom'
                   )
               })
             )
@@ -960,16 +970,20 @@ export class AiAgentService {
 
       market_context: tool({
         description:
-          'Get current market prices, daily price changes (vs previous close), currency, and market state for specific symbols. Use this when the user asks about current prices, today\'s price changes, intraday movement, market conditions, or wants to compare holdings to market data.',
+          'Get current market prices, daily price changes (vs previous close), currency, and market state for specific symbols. Supports stocks (YAHOO) and cryptocurrencies (COINGECKO). Common crypto tickers (BTC, ETH, SOL, etc.) are auto-resolved to CoinGecko IDs. Use this when the user asks about current prices, today\'s price changes, intraday movement, market conditions, crypto prices, or wants to compare holdings to market data.',
         parameters: z.object({
           symbols: z
             .array(
               z.object({
-                symbol: z.string().describe('The ticker symbol'),
+                symbol: z
+                  .string()
+                  .describe(
+                    'The ticker symbol (e.g., AAPL for stocks, bitcoin or BTC for crypto)'
+                  ),
                 dataSource: z
                   .string()
                   .describe(
-                    'Data source (e.g., YAHOO, COINGECKO, MANUAL)'
+                    'Data source: YAHOO for stocks/ETFs, COINGECKO for crypto, MANUAL for custom'
                   )
               })
             )

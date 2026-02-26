@@ -6,6 +6,53 @@ import { DataSource } from '@prisma/client';
 
 import { getPreviousCloseMap } from './helpers/previous-close.helper';
 
+export const CRYPTO_SYMBOL_MAP: Record<string, string> = {
+  BTC: 'bitcoin',
+  BITCOIN: 'bitcoin',
+  ETH: 'ethereum',
+  ETHEREUM: 'ethereum',
+  SOL: 'solana',
+  SOLANA: 'solana',
+  BNB: 'binancecoin',
+  XRP: 'ripple',
+  RIPPLE: 'ripple',
+  ADA: 'cardano',
+  CARDANO: 'cardano',
+  DOGE: 'dogecoin',
+  DOGECOIN: 'dogecoin',
+  AVAX: 'avalanche-2',
+  AVALANCHE: 'avalanche-2',
+  LINK: 'chainlink',
+  CHAINLINK: 'chainlink',
+  LTC: 'litecoin',
+  LITECOIN: 'litecoin',
+  DOT: 'polkadot',
+  POLKADOT: 'polkadot',
+  MATIC: 'matic-network',
+  POLYGON: 'matic-network',
+  SHIB: 'shiba-inu',
+  UNI: 'uniswap',
+  ATOM: 'cosmos',
+  XLM: 'stellar',
+  ALGO: 'algorand',
+  FTM: 'fantom',
+  NEAR: 'near'
+};
+
+export function resolveSymbol(input: {
+  symbol: string;
+  dataSource: string;
+}): { symbol: string; dataSource: string } {
+  const upper = input.symbol.toUpperCase();
+  const coingeckoId = CRYPTO_SYMBOL_MAP[upper];
+
+  if (coingeckoId) {
+    return { symbol: coingeckoId, dataSource: 'COINGECKO' };
+  }
+
+  return input;
+}
+
 @Injectable()
 export class MarketContextTool {
   public constructor(
@@ -18,10 +65,14 @@ export class MarketContextTool {
   }: {
     symbols: { symbol: string; dataSource: string }[];
   }) {
-    const items = symbols.map(({ dataSource, symbol }) => ({
-      dataSource: dataSource as DataSource,
-      symbol
-    }));
+    const items = symbols.map((entry) => {
+      const resolved = resolveSymbol(entry);
+
+      return {
+        dataSource: resolved.dataSource as DataSource,
+        symbol: resolved.symbol
+      };
+    });
 
     const [quotes, previousCloseMap] = await Promise.all([
       this.dataProviderService.getQuotes({
