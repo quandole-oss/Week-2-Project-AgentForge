@@ -1151,6 +1151,8 @@ export class AiAgentService {
         }
       },
       onFinish: async ({ text, usage: finishUsage }) => {
+        let lastHallucinationScore: number | undefined;
+
         try {
           const duration =
             this.telemetryService.measureDuration(startTime);
@@ -1166,8 +1168,6 @@ export class AiAgentService {
 
           let responseText =
             this.verificationService.enforceDisclaimer(text);
-
-          let lastHallucinationScore: number | undefined;
 
           if (toolCallsLog.length > 0) {
             const hallucinationResult =
