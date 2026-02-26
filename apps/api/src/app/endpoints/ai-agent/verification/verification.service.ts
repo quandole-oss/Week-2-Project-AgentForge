@@ -130,7 +130,7 @@ export class VerificationService {
     }
 
     if (params.hallucinationScore !== undefined) {
-      confidence -= params.hallucinationScore * 0.8;
+      confidence -= Math.min(0.15, params.hallucinationScore * 0.8);
     }
 
     if (params.toolErrors) {

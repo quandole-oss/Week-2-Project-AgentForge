@@ -114,6 +114,32 @@ describe('HallucinationDetector', () => {
       expect(result.totalClaims).toBeGreaterThan(0);
     });
 
+    it('should keep decimal dollar amounts intact during sentence splitting', () => {
+      const response =
+        '$115,851.63 Total Value across all holdings.';
+      const toolResults = [{ totalValue: 115851.63 }];
+
+      const result = detector.check(response, toolResults);
+
+      expect(result.totalClaims).toBeGreaterThan(0);
+      expect(result.groundedClaims).toBeGreaterThan(0);
+      expect(result.flaggedClaims).toHaveLength(0);
+      expect(result.score).toBe(0);
+    });
+
+    it('should keep decimal percentages intact during sentence splitting', () => {
+      const response =
+        'Your portfolio returned +37.09% over the past year.';
+      const toolResults = [{ returnPercent: 37.09 }];
+
+      const result = detector.check(response, toolResults);
+
+      expect(result.totalClaims).toBeGreaterThan(0);
+      expect(result.groundedClaims).toBeGreaterThan(0);
+      expect(result.flaggedClaims).toHaveLength(0);
+      expect(result.score).toBe(0);
+    });
+
     it('should handle multiple claims with mixed grounding', () => {
       const response =
         'Your portfolio is worth $100,000 with 5 holdings. You earned a 99.99% return.';

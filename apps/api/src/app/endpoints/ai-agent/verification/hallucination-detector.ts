@@ -55,8 +55,16 @@ export class HallucinationDetector {
   private extractFactualClaims(text: string): string[] {
     const claims: string[] = [];
 
-    // Extract sentences with numbers (likely factual claims)
-    const sentences = text.split(/[.!?]+/).filter((s) => s.trim());
+    // Protect decimal points (digit.digit) from sentence splitting
+    const DECIMAL_PLACEHOLDER = '\u0000';
+    const safeText = text.replace(
+      /(\d)\.(\d)/g,
+      `$1${DECIMAL_PLACEHOLDER}$2`
+    );
+    const sentences = safeText
+      .split(/[.!?]+/)
+      .filter((s) => s.trim())
+      .map((s) => s.replace(/\u0000/g, '.'));
 
     for (const sentence of sentences) {
       const trimmed = sentence.trim();

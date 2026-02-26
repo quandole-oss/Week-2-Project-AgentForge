@@ -229,15 +229,15 @@ describe('VerificationService', () => {
       expect(confidence).toBeCloseTo(0.87, 10);
     });
 
-    it('should apply large penalty for high hallucination score', () => {
+    it('should cap hallucination penalty at 0.15', () => {
       const confidence = service.assessConfidence({
         toolCallCount: 1,
         hasErrors: false,
         responseLength: 200,
         hallucinationScore: 0.5
       });
-      // 0.95 - (0.5 * 0.8) = 0.95 - 0.4 = 0.55
-      expect(confidence).toBeCloseTo(0.55, 10);
+      // 0.95 - min(0.15, 0.5 * 0.8) = 0.95 - 0.15 = 0.80
+      expect(confidence).toBeCloseTo(0.80, 10);
     });
 
     it('should reduce confidence by 0.1 per tool error', () => {
@@ -292,8 +292,8 @@ describe('VerificationService', () => {
         toolErrors: 1,
         dataAgeMinutes: 100
       });
-      // 0.95 - 0.35 - 0.15 - 0.1 - 0.16 - 0.07 - 0.1 = 0.02
-      expect(confidence).toBeCloseTo(0.02, 1);
+      // 0.95 - 0.35 - 0.15 - 0.1 - min(0.15, 0.16) - 0.1 - 0.07 = 0.03
+      expect(confidence).toBeCloseTo(0.03, 1);
     });
 
     it('should never go below 0', () => {

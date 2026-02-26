@@ -185,8 +185,8 @@ describe('Performance Targets', () => {
 
     it('should detect hallucinations in fabricated responses', () => {
       const fabricated = hallucinationDetector.check(
-        'Your portfolio earned a 99.9% return and is worth $5,000,000.',
-        [{ totalValue: 100000, returnPercent: 15.3 }]
+        'Your portfolio earned a 87.5% return and is worth $5,000,000.',
+        [{ totalValue: 50000, returnPercent: 15.3 }]
       );
       expect(fabricated.score).toBeGreaterThan(0);
       expect(fabricated.flaggedClaims.length).toBeGreaterThan(0);
