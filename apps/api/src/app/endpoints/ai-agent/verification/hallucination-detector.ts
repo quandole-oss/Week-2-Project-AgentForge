@@ -97,7 +97,7 @@ export class HallucinationDetector {
         continue;
       }
 
-      // Check if this number (or close variant) exists in tool data
+      // Exact and string forms
       if (
         toolDataString.includes(cleaned) ||
         toolDataString.includes(num.toString())
@@ -105,7 +105,7 @@ export class HallucinationDetector {
         return true;
       }
 
-      // Check with reasonable rounding tolerance
+      // Rounding tolerance (2, 1, 0 decimals)
       const rounded2 = num.toFixed(2);
       const rounded1 = num.toFixed(1);
       const rounded0 = Math.round(num).toString();
@@ -116,6 +116,27 @@ export class HallucinationDetector {
         toolDataString.includes(rounded0)
       ) {
         return true;
+      }
+
+      // One-decimal form without trailing zero (e.g. 30.82 -> "30.8" so tool "30.8" matches)
+      const oneDecimalTrimmed = parseFloat(num.toFixed(1)).toString();
+      if (toolDataString.includes(oneDecimalTrimmed)) {
+        return true;
+      }
+
+      // Percentage as decimal in tool (e.g. 30.82% in response, 0.3082 or 0.308 in tool)
+      if (num >= 0 && num <= 100) {
+        const asDecimal = num / 100;
+        const decimalVariants = [
+          asDecimal.toFixed(4),
+          asDecimal.toFixed(3),
+          asDecimal.toFixed(2)
+        ];
+        if (
+          decimalVariants.some((v) => toolDataString.includes(v))
+        ) {
+          return true;
+        }
       }
     }
 
