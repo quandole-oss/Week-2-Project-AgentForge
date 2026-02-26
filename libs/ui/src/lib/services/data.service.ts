@@ -737,14 +737,18 @@ export class DataService {
     traceId: string;
     conversationId: string;
     done: boolean;
-    toolNames?: string[];
+    toolCalls?: AiAgentResponse['toolCalls'];
+    confidence?: number;
+    disclaimers?: string[];
   }> {
     const subject = new Subject<{
       text: string;
       traceId: string;
       conversationId: string;
       done: boolean;
-      toolNames?: string[];
+      toolCalls?: AiAgentResponse['toolCalls'];
+      confidence?: number;
+      disclaimers?: string[];
     }>();
 
     const token =
@@ -776,40 +780,82 @@ export class DataService {
         const decoder = new TextDecoder();
         let accumulated = '';
 
-        function stripToolsLine(
+        function stripMetaLine(
           acc: string
-        ): { text: string; toolNames?: string[] } {
-          const m = acc.match(/\n__TOOLS__:(.+)$/);
-          if (!m) return { text: acc };
-          try {
-            const toolNames = JSON.parse(m[1].trim()) as string[];
-            return {
-              text: acc.slice(0, acc.length - m[0].length).trimEnd(),
-              toolNames
-            };
-          } catch {
-            return { text: acc };
+        ): {
+          text: string;
+          toolCalls?: AiAgentResponse['toolCalls'];
+          confidence?: number;
+          disclaimers?: string[];
+        } {
+          // Try new __META__ format first
+          const metaMatch = acc.match(/\n__META__:(.+)$/);
+          if (metaMatch) {
+            try {
+              const meta = JSON.parse(metaMatch[1].trim()) as {
+                toolCalls?: AiAgentResponse['toolCalls'];
+                confidence?: number;
+                disclaimers?: string[];
+              };
+              return {
+                text: acc
+                  .slice(0, acc.length - metaMatch[0].length)
+                  .trimEnd(),
+                toolCalls: meta.toolCalls,
+                confidence: meta.confidence,
+                disclaimers: meta.disclaimers
+              };
+            } catch {
+              return { text: acc };
+            }
           }
+
+          // Backward-compat fallback for __TOOLS__ format
+          const toolsMatch = acc.match(/\n__TOOLS__:(.+)$/);
+          if (toolsMatch) {
+            try {
+              const toolNames = JSON.parse(
+                toolsMatch[1].trim()
+              ) as string[];
+              return {
+                text: acc
+                  .slice(0, acc.length - toolsMatch[0].length)
+                  .trimEnd(),
+                toolCalls: toolNames.map((toolName) => ({
+                  toolName,
+                  args: {},
+                  result: undefined
+                }))
+              };
+            } catch {
+              return { text: acc };
+            }
+          }
+
+          return { text: acc };
         }
 
         while (true) {
           const { done, value } = await reader.read();
 
           if (done) {
-            const { text, toolNames } = stripToolsLine(accumulated);
+            const { text, toolCalls, confidence, disclaimers } =
+              stripMetaLine(accumulated);
             subject.next({
               text,
               traceId,
               conversationId: respConversationId,
               done: true,
-              toolNames
+              toolCalls,
+              confidence,
+              disclaimers
             });
             subject.complete();
             break;
           }
 
           accumulated += decoder.decode(value, { stream: true });
-          const { text } = stripToolsLine(accumulated);
+          const { text } = stripMetaLine(accumulated);
           subject.next({
             text,
             traceId,

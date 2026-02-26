@@ -7,6 +7,21 @@ const DISCLAIMER =
 const DISCLAIMER_PATTERN =
   /financial advice|consult.*advisor|educational purposes|not.*recommendation/i;
 
+const CONTEXTUAL_DISCLAIMERS: Record<string, string> = {
+  tax_estimator:
+    'Tax estimates use simplified FIFO lot matching and may not reflect your actual tax liability. Consult a tax professional before filing.',
+  compliance_checker:
+    'Compliance checks use general thresholds (e.g., 25% concentration limit) and do not account for your specific regulatory requirements.',
+  market_context:
+    'Market prices may be delayed up to 15 minutes. Intraday figures should not be used for time-sensitive decisions.',
+  allocation_optimizer:
+    'Rebalancing suggestions are illustrative and do not account for tax consequences, transaction costs, or personal risk tolerance.',
+  portfolio_summary:
+    'Portfolio valuations depend on data provider accuracy. Verify important figures against your brokerage statements.',
+  transaction_analyzer:
+    'Transaction analysis reflects imported data only. Ensure all accounts are synced for complete results.'
+};
+
 @Injectable()
 export class VerificationService {
   private readonly logger = new Logger(VerificationService.name);
@@ -92,25 +107,54 @@ export class VerificationService {
     };
   }
 
-  public assessConfidence(
-    toolCallCount: number,
-    hasErrors: boolean,
-    responseLength: number
-  ): number {
-    let confidence = 0.8;
+  public assessConfidence(params: {
+    toolCallCount: number;
+    hasErrors: boolean;
+    responseLength: number;
+    hallucinationScore?: number;
+    toolErrors?: number;
+    dataAgeMinutes?: number;
+  }): number {
+    let confidence = 0.95;
 
-    if (toolCallCount === 0) {
-      confidence -= 0.3;
+    if (params.toolCallCount === 0) {
+      confidence -= 0.35;
     }
 
-    if (hasErrors) {
-      confidence -= 0.2;
+    if (params.hasErrors) {
+      confidence -= 0.15;
     }
 
-    if (responseLength < 50) {
+    if (params.responseLength < 50) {
       confidence -= 0.1;
     }
 
+    if (params.hallucinationScore !== undefined) {
+      confidence -= params.hallucinationScore * 0.8;
+    }
+
+    if (params.toolErrors) {
+      confidence -= params.toolErrors * 0.1;
+    }
+
+    if (
+      params.dataAgeMinutes !== undefined &&
+      params.dataAgeMinutes > 30
+    ) {
+      confidence -= Math.min(
+        0.15,
+        (params.dataAgeMinutes - 30) * 0.001
+      );
+    }
+
     return Math.max(0, Math.min(1, confidence));
+  }
+
+  public getContextualDisclaimers(toolNames: string[]): string[] {
+    const unique = [...new Set(toolNames)];
+
+    return unique
+      .map((name) => CONTEXTUAL_DISCLAIMERS[name])
+      .filter(Boolean);
   }
 }

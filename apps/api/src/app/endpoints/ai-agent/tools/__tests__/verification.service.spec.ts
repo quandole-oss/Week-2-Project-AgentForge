@@ -182,41 +182,196 @@ describe('VerificationService', () => {
   // assessConfidence
   // ---------------------------------------------------------------------------
   describe('assessConfidence', () => {
-    it('should return base confidence of 0.8 for normal conditions', () => {
-      const confidence = service.assessConfidence(1, false, 200);
-      expect(confidence).toBe(0.8);
+    it('should return base confidence of 0.95 for normal conditions', () => {
+      const confidence = service.assessConfidence({
+        toolCallCount: 1,
+        hasErrors: false,
+        responseLength: 200
+      });
+      expect(confidence).toBe(0.95);
     });
 
-    it('should reduce confidence by 0.3 when toolCallCount is 0', () => {
-      const confidence = service.assessConfidence(0, false, 200);
-      expect(confidence).toBe(0.5);
-    });
-
-    it('should reduce confidence by 0.2 when hasErrors is true', () => {
-      const confidence = service.assessConfidence(1, true, 200);
+    it('should reduce confidence by 0.35 when toolCallCount is 0', () => {
+      const confidence = service.assessConfidence({
+        toolCallCount: 0,
+        hasErrors: false,
+        responseLength: 200
+      });
       expect(confidence).toBeCloseTo(0.6, 10);
     });
 
+    it('should reduce confidence by 0.15 when hasErrors is true', () => {
+      const confidence = service.assessConfidence({
+        toolCallCount: 1,
+        hasErrors: true,
+        responseLength: 200
+      });
+      expect(confidence).toBeCloseTo(0.8, 10);
+    });
+
     it('should reduce confidence by 0.1 when response is short', () => {
-      const confidence = service.assessConfidence(1, false, 30);
-      expect(confidence).toBeCloseTo(0.7, 10);
+      const confidence = service.assessConfidence({
+        toolCallCount: 1,
+        hasErrors: false,
+        responseLength: 30
+      });
+      expect(confidence).toBeCloseTo(0.85, 10);
+    });
+
+    it('should reduce confidence proportionally to hallucination score', () => {
+      const confidence = service.assessConfidence({
+        toolCallCount: 1,
+        hasErrors: false,
+        responseLength: 200,
+        hallucinationScore: 0.1
+      });
+      // 0.95 - (0.1 * 0.8) = 0.95 - 0.08 = 0.87
+      expect(confidence).toBeCloseTo(0.87, 10);
+    });
+
+    it('should apply large penalty for high hallucination score', () => {
+      const confidence = service.assessConfidence({
+        toolCallCount: 1,
+        hasErrors: false,
+        responseLength: 200,
+        hallucinationScore: 0.5
+      });
+      // 0.95 - (0.5 * 0.8) = 0.95 - 0.4 = 0.55
+      expect(confidence).toBeCloseTo(0.55, 10);
+    });
+
+    it('should reduce confidence by 0.1 per tool error', () => {
+      const confidence = service.assessConfidence({
+        toolCallCount: 3,
+        hasErrors: false,
+        responseLength: 200,
+        toolErrors: 2
+      });
+      // 0.95 - (2 * 0.1) = 0.75
+      expect(confidence).toBeCloseTo(0.75, 10);
+    });
+
+    it('should apply stale data penalty after 30 minutes', () => {
+      const confidence = service.assessConfidence({
+        toolCallCount: 1,
+        hasErrors: false,
+        responseLength: 200,
+        dataAgeMinutes: 60
+      });
+      // 0.95 - min(0.15, (60 - 30) * 0.001) = 0.95 - 0.03 = 0.92
+      expect(confidence).toBeCloseTo(0.92, 10);
+    });
+
+    it('should cap stale data penalty at 0.15', () => {
+      const confidence = service.assessConfidence({
+        toolCallCount: 1,
+        hasErrors: false,
+        responseLength: 200,
+        dataAgeMinutes: 500
+      });
+      // 0.95 - min(0.15, (500 - 30) * 0.001) = 0.95 - 0.15 = 0.80
+      expect(confidence).toBeCloseTo(0.80, 10);
+    });
+
+    it('should not apply stale data penalty under 30 minutes', () => {
+      const confidence = service.assessConfidence({
+        toolCallCount: 1,
+        hasErrors: false,
+        responseLength: 200,
+        dataAgeMinutes: 15
+      });
+      expect(confidence).toBe(0.95);
     });
 
     it('should stack all penalties', () => {
-      const confidence = service.assessConfidence(0, true, 10);
-      // 0.8 - 0.3 - 0.2 - 0.1 = 0.2
-      expect(confidence).toBeCloseTo(0.2, 10);
+      const confidence = service.assessConfidence({
+        toolCallCount: 0,
+        hasErrors: true,
+        responseLength: 10,
+        hallucinationScore: 0.2,
+        toolErrors: 1,
+        dataAgeMinutes: 100
+      });
+      // 0.95 - 0.35 - 0.15 - 0.1 - 0.16 - 0.07 - 0.1 = 0.02
+      expect(confidence).toBeCloseTo(0.02, 1);
     });
 
     it('should never go below 0', () => {
-      // Even with all penalties, floor is 0
-      const confidence = service.assessConfidence(0, true, 10);
-      expect(confidence).toBeGreaterThanOrEqual(0);
+      const confidence = service.assessConfidence({
+        toolCallCount: 0,
+        hasErrors: true,
+        responseLength: 10,
+        hallucinationScore: 1.0,
+        toolErrors: 5,
+        dataAgeMinutes: 1000
+      });
+      expect(confidence).toBe(0);
     });
 
     it('should never exceed 1', () => {
-      const confidence = service.assessConfidence(100, false, 10000);
+      const confidence = service.assessConfidence({
+        toolCallCount: 100,
+        hasErrors: false,
+        responseLength: 10000
+      });
       expect(confidence).toBeLessThanOrEqual(1);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // getContextualDisclaimers
+  // ---------------------------------------------------------------------------
+  describe('getContextualDisclaimers', () => {
+    it('should return empty array for empty tool list', () => {
+      const disclaimers = service.getContextualDisclaimers([]);
+      expect(disclaimers).toEqual([]);
+    });
+
+    it('should return matching disclaimer for a single tool', () => {
+      const disclaimers = service.getContextualDisclaimers([
+        'tax_estimator'
+      ]);
+      expect(disclaimers).toHaveLength(1);
+      expect(disclaimers[0]).toContain('FIFO lot matching');
+    });
+
+    it('should return multiple disclaimers for multiple tools', () => {
+      const disclaimers = service.getContextualDisclaimers([
+        'tax_estimator',
+        'market_context'
+      ]);
+      expect(disclaimers).toHaveLength(2);
+      expect(disclaimers[0]).toContain('FIFO lot matching');
+      expect(disclaimers[1]).toContain('delayed up to 15 minutes');
+    });
+
+    it('should deduplicate tool names', () => {
+      const disclaimers = service.getContextualDisclaimers([
+        'portfolio_summary',
+        'portfolio_summary'
+      ]);
+      expect(disclaimers).toHaveLength(1);
+    });
+
+    it('should ignore unknown tool names', () => {
+      const disclaimers = service.getContextualDisclaimers([
+        'unknown_tool',
+        'portfolio_summary'
+      ]);
+      expect(disclaimers).toHaveLength(1);
+      expect(disclaimers[0]).toContain('data provider accuracy');
+    });
+
+    it('should return all 6 disclaimers for all tools', () => {
+      const disclaimers = service.getContextualDisclaimers([
+        'tax_estimator',
+        'compliance_checker',
+        'market_context',
+        'allocation_optimizer',
+        'portfolio_summary',
+        'transaction_analyzer'
+      ]);
+      expect(disclaimers).toHaveLength(6);
     });
   });
 

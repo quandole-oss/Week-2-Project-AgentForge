@@ -192,10 +192,14 @@ describe('AiAgentService — Eval Suite', () => {
       });
     });
 
-    // Thresholds (0.7, 0.8) must match VerificationService.assessConfidence defaults
+    // Thresholds (0.7, 0.95) must match VerificationService.assessConfidence defaults
     it('should assess high confidence when tools are called', () => {
       const startTime = performance.now();
-      const confidence = verificationService.assessConfidence(3, false, 500);
+      const confidence = verificationService.assessConfidence({
+        toolCallCount: 3,
+        hasErrors: false,
+        responseLength: 500
+      });
       const passed = confidence >= 0.7;
 
       expect(confidence).toBeGreaterThanOrEqual(0.7);
@@ -212,7 +216,11 @@ describe('AiAgentService — Eval Suite', () => {
 
     it('should assess low confidence with no tool calls', () => {
       const startTime = performance.now();
-      const confidence = verificationService.assessConfidence(0, false, 500);
+      const confidence = verificationService.assessConfidence({
+        toolCallCount: 0,
+        hasErrors: false,
+        responseLength: 500
+      });
       const passed = confidence < 0.7;
 
       expect(confidence).toBeLessThan(0.7);
@@ -229,10 +237,14 @@ describe('AiAgentService — Eval Suite', () => {
 
     it('should assess low confidence with errors', () => {
       const startTime = performance.now();
-      const confidence = verificationService.assessConfidence(2, true, 500);
-      const passed = confidence < 0.8;
+      const confidence = verificationService.assessConfidence({
+        toolCallCount: 2,
+        hasErrors: true,
+        responseLength: 500
+      });
+      const passed = confidence < 0.85;
 
-      expect(confidence).toBeLessThan(0.8);
+      expect(confidence).toBeLessThan(0.85);
 
       evalResults.push({
         caseId: 'verification-low-confidence-errors',
@@ -240,7 +252,7 @@ describe('AiAgentService — Eval Suite', () => {
         passed,
         durationMs: Math.round(performance.now() - startTime),
         toolsCalled: [],
-        assertions: { confidence, threshold: 0.8 }
+        assertions: { confidence, threshold: 0.85 }
       });
     });
   });

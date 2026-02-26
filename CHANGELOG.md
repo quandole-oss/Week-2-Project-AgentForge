@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## AgentForge AI Agent - 2026-02-26
+
+### Added
+
+- Tool transparency: streaming responses now send full tool call data (args, results, timing) via `__META__` payload instead of tool names only
+- Contextual disclaimers: each tool maps to a domain-specific disclaimer (e.g., tax estimates mention FIFO simplification, market prices note potential delay)
+- `getContextualDisclaimers()` method on `VerificationService` for per-tool disclaimer selection
+- `disclaimers?: string[]` field on `AiAgentResponse` interface
+- `computeDataAge()` private method on `AiAgentService` for market data staleness detection
+- Color-coded confidence indicator in frontend: green (high), orange (moderate), red (low) with labels
+- Contextual disclaimer display in frontend with amber left-border styling
+
+### Changed
+
+- `assessConfidence()` now takes an object parameter with 6 signals: `toolCallCount`, `hasErrors`, `responseLength`, `hallucinationScore`, `toolErrors`, `dataAgeMinutes`
+- Base confidence raised from 0.8 to 0.95 with more granular penalties (hallucination score scaled at 0.8x, tool errors at 0.1x each, stale data capped at 0.15)
+- Stream format changed from `__TOOLS__:` (tool names array) to `__META__:` (full metadata object with toolCalls, confidence, disclaimers)
+- Frontend data service (`stripMetaLine`) parses `__META__` format with backward-compat fallback for `__TOOLS__`
+- Streaming responses now populate expansion panel with actual tool arguments and results instead of empty stubs
+
+---
+
 ## AgentForge AI Agent - 2026-02-23
 
 ### Added

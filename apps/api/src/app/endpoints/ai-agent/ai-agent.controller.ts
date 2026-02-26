@@ -86,7 +86,7 @@ export class AiAgentController {
     const {
       result,
       traceId,
-      toolNamesPromise,
+      streamMetaPromise,
       conversationId: activeConversationId
     } = await this.aiAgentService.chatStream({
       conversationHistory,
@@ -107,8 +107,8 @@ export class AiAgentController {
       for await (const textPart of result.textStream) {
         res.write(textPart);
       }
-      const toolNames = await toolNamesPromise;
-      res.write('\n__TOOLS__:' + JSON.stringify(toolNames));
+      const meta = await streamMetaPromise;
+      res.write('\n__META__:' + JSON.stringify(meta));
     } catch (error) {
       this.logger.error(`Stream error [${traceId}]: ${error.message}`);
     } finally {

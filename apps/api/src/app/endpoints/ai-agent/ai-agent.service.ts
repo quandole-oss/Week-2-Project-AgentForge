@@ -600,11 +600,17 @@ export class AiAgentService {
       }
 
       const duration = this.telemetryService.measureDuration(startTime);
-      const confidence = this.verificationService.assessConfidence(
-        toolCallsLog.length,
-        hasVerificationErrors,
-        responseText.length
-      );
+      const toolErrors = toolCallsLog.filter(
+        (tc) => (tc.result as any)?.error
+      ).length;
+      const confidence = this.verificationService.assessConfidence({
+        toolCallCount: toolCallsLog.length,
+        hasErrors: hasVerificationErrors,
+        responseLength: responseText.length,
+        hallucinationScore: lastHallucinationScore,
+        toolErrors,
+        dataAgeMinutes: this.computeDataAge(toolCallsLog)
+      });
 
       // Phase 6: Low confidence uncertainty language
       if (confidence < 0.7) {
@@ -673,6 +679,9 @@ export class AiAgentService {
           toolCallsLog.length > 0 ? toolCallsLog : undefined,
         confidence,
         disclaimer: this.verificationService.getDisclaimer(),
+        disclaimers: this.verificationService.getContextualDisclaimers(
+          toolCallsLog.map((t) => t.toolName)
+        ),
         sources,
         usage: {
           promptTokens: usage.promptTokens,
@@ -814,9 +823,16 @@ export class AiAgentService {
     ];
 
     const toolCallsLog: AiAgentToolCall[] = [];
-    let resolveToolNames: (names: string[]) => void;
-    const toolNamesPromise = new Promise<string[]>((resolve) => {
-      resolveToolNames = resolve;
+
+    interface StreamMeta {
+      toolCalls: AiAgentToolCall[];
+      confidence: number;
+      disclaimers: string[];
+    }
+
+    let resolveStreamMeta: (meta: StreamMeta) => void;
+    const streamMetaPromise = new Promise<StreamMeta>((resolve) => {
+      resolveStreamMeta = resolve;
     });
 
     const tools = {
@@ -1164,12 +1180,18 @@ export class AiAgentService {
             lastHallucinationScore = hallucinationResult.score;
           }
 
+          const toolErrors = toolCallsLog.filter(
+            (tc) => (tc.result as any)?.error
+          ).length;
           const confidence =
-            this.verificationService.assessConfidence(
-              toolCallsLog.length,
-              false,
-              responseText.length
-            );
+            this.verificationService.assessConfidence({
+              toolCallCount: toolCallsLog.length,
+              hasErrors: false,
+              responseLength: responseText.length,
+              hallucinationScore: lastHallucinationScore,
+              toolErrors,
+              dataAgeMinutes: this.computeDataAge(toolCallsLog)
+            });
 
           this.telemetryService.reportLangfuseScores({
             traceId,
@@ -1223,7 +1245,25 @@ export class AiAgentService {
             `[${traceId}] Stream onFinish telemetry failed: ${err.message}`
           );
         } finally {
-          resolveToolNames(toolCallsLog.map((t) => t.toolName));
+          const finalConfidence =
+            this.verificationService.assessConfidence({
+              toolCallCount: toolCallsLog.length,
+              hasErrors: false,
+              responseLength: text?.length ?? 0,
+              hallucinationScore: lastHallucinationScore,
+              toolErrors: toolCallsLog.filter(
+                (tc) => (tc.result as any)?.error
+              ).length,
+              dataAgeMinutes: this.computeDataAge(toolCallsLog)
+            });
+          resolveStreamMeta({
+            toolCalls: toolCallsLog,
+            confidence: finalConfidence,
+            disclaimers:
+              this.verificationService.getContextualDisclaimers(
+                toolCallsLog.map((t) => t.toolName)
+              )
+          });
         }
       }
     });
@@ -1231,7 +1271,7 @@ export class AiAgentService {
     return {
       result,
       traceId,
-      toolNamesPromise,
+      streamMetaPromise,
       conversationId: activeConversationId
     };
   }
@@ -1362,5 +1402,33 @@ export class AiAgentService {
       where: { id: conversationId },
       data: { updatedAt: new Date() }
     });
+  }
+
+  private computeDataAge(
+    toolCallsLog: AiAgentToolCall[]
+  ): number | undefined {
+    const marketCall = toolCallsLog.find(
+      (tc) => tc.toolName === 'market_context'
+    );
+
+    if (!marketCall?.result || (marketCall.result as any)?.error) {
+      return undefined;
+    }
+
+    const result = marketCall.result as any;
+    const timestamp =
+      result?.timestamp ?? result?.fetchedAt ?? result?.date;
+
+    if (!timestamp) {
+      return undefined;
+    }
+
+    const fetchedAt = new Date(timestamp);
+
+    if (isNaN(fetchedAt.getTime())) {
+      return undefined;
+    }
+
+    return (Date.now() - fetchedAt.getTime()) / 60_000;
   }
 }

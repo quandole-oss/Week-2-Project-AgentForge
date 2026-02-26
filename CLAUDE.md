@@ -90,7 +90,7 @@ Key patterns:
 
 ### AI Agent Feature
 
-Located at `apps/api/src/app/endpoints/ai-agent/`. Uses Claude Haiku 3.5 via `@ai-sdk/anthropic`. Has 6 tools (portfolio_summary, transaction_analyzer, market_context, tax_estimator, compliance_checker, allocation_optimizer), a verification layer for hallucination detection, telemetry/eval persistence, and rate limiting. Feature-flagged via `ENABLE_FEATURE_AI_AGENT`.
+Located at `apps/api/src/app/endpoints/ai-agent/`. Uses Claude Haiku 3.5 via `@ai-sdk/anthropic`. Has 6 tools (portfolio_summary, transaction_analyzer, market_context, tax_estimator, compliance_checker, allocation_optimizer), a verification layer (hallucination detection, contextual disclaimers per tool, multi-signal confidence scoring), telemetry/eval persistence, and rate limiting. Streaming sends `__META__:` payload with full tool call data, confidence, and disclaimers. Feature-flagged via `ENABLE_FEATURE_AI_AGENT`.
 
 ## Code Conventions
 

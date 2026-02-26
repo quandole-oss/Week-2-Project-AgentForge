@@ -24,6 +24,7 @@ export interface AiAgentResponse {
   toolCalls?: AiAgentToolCall[];
   confidence?: number;
   disclaimer: string;
+  disclaimers?: string[];
   sources: { service: string; timestamp: string }[];
   usage?: AiAgentUsage;
   durationMs?: number;

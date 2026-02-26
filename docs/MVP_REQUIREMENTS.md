@@ -10,7 +10,7 @@
 | 4 | Agent synthesizes tool results into coherent responses | PASS | See below |
 | 5 | Conversation history maintained across turns | PASS | See below |
 | 6 | Basic error handling (graceful failure) | PASS | See below |
-| 7 | At least one domain-specific verification check | PASS | 5 checks implemented |
+| 7 | At least one domain-specific verification check | PASS | 6 checks implemented |
 | 8 | 5+ test cases with expected outcomes | PASS | 69 eval cases, 25 integration tests |
 | 9 | Deployed and publicly accessible | PASS | Railway deployment live |
 
@@ -71,8 +71,8 @@ Each tool is registered with Zod parameter schemas and descriptions so the LLM c
 **Evidence of execution tracking** (`ai-agent.service.ts`):
 - Every tool call is wrapped in try/catch with duration measurement
 - `toolCallsLog` captures: `toolName`, `args`, `result`, `durationMs`
-- Tool names are sent back to the client via `__TOOLS__:` suffix in the stream
-- Tool results are displayed in an expandable panel in the frontend UI
+- Full tool metadata (args, results, confidence, disclaimers) sent via `__META__:` suffix in the stream
+- Tool results are displayed in an expandable panel in the frontend UI with full args and results
 
 ---
 
@@ -83,7 +83,8 @@ Each tool is registered with Zod parameter schemas and descriptions so the LLM c
 - **Markdown formatting** — headings, tables, lists, bold/italic for structured data presentation
 - **Verification layer** — responses pass through `VerificationService.enforceDisclaimer()` to ensure disclaimers
 - **Hallucination detection** — `HallucinationDetector.check()` verifies numerical claims against tool data
-- **Confidence scoring** — `VerificationService.assessConfidence()` rates response reliability (0–1)
+- **Confidence scoring** — `VerificationService.assessConfidence()` rates response reliability (0–1) using 6 signals: tool calls, errors, response length, hallucination score, tool errors, and data staleness
+- **Contextual disclaimers** — each tool maps to a domain-specific disclaimer; applicable ones are selected per response
 - **Low-confidence language** — when confidence < 0.7, uncertainty language is automatically appended
 - **Retry on hallucination** — if hallucination score > 0.1, the model regenerates (up to 1 retry)
 
@@ -140,18 +141,19 @@ The frontend renders responses as HTML via `marked` markdown parser with dark-mo
 
 ### 7. At least one domain-specific verification check
 
-**5 domain-specific checks** implemented across two services:
+**6 domain-specific checks** implemented across two services:
 
 **`verification/verification.service.ts`:**
 
 1. **Financial Disclaimer Enforcement** — ensures every response contains "educational purposes only / not financial advice" language. Appends it if missing.
-2. **Source Attribution Validation** — checks that tool results are referenced in the response text; flags tools with missing attribution.
-3. **Numerical Accuracy Verification** — extracts dollar amounts and percentages from the response, compares against tool data with 0.01% tolerance, flags drift.
-4. **Confidence Assessment** — scores response reliability (0–1) based on tool call count, error presence, and response length.
+2. **Contextual Disclaimers** — maps each tool to a domain-specific disclaimer (e.g., tax estimates note FIFO simplification, market prices note potential 15-minute delay). Selects applicable disclaimers per response.
+3. **Source Attribution Validation** — checks that tool results are referenced in the response text; flags tools with missing attribution.
+4. **Numerical Accuracy Verification** — extracts dollar amounts and percentages from the response, compares against tool data with 0.01% tolerance, flags drift.
+5. **Confidence Assessment** — scores response reliability (0–1) using 6 signals: tool call count, verification errors, response length, hallucination score, tool errors, and data staleness. Base 0.95 with granular penalties.
 
 **`verification/hallucination-detector.ts`:**
 
-5. **Hallucination Detection** — extracts factual claims containing numbers, verifies each against tool results using exact match, string inclusion, and rounding tolerance. Returns a hallucination score (0–1). Triggers regeneration if score > 0.1, adds a warning if > 0.05.
+6. **Hallucination Detection** — extracts factual claims containing numbers, verifies each against tool results using exact match, string inclusion, and rounding tolerance. Returns a hallucination score (0–1). Triggers regeneration if score > 0.1, adds a warning if > 0.05.
 
 ---
 

@@ -95,3 +95,18 @@
 - [x] Pass `userCurrency` to `PortfolioSummaryTool.execute()`
 - [x] Add 8 intraday eval cases (`eval-cases.ts`)
 - [x] Add intraday validation tests (`ai-agent.eval.spec.ts`)
+
+## Phase 13: Tool Transparency, Contextual Disclaimers, and High-Signal Confidence
+- [x] Replace `toolNamesPromise` with `streamMetaPromise` carrying full `{ toolCalls, confidence, disclaimers }` in `chatStream()`
+- [x] Change stream format from `__TOOLS__` to `__META__` with backward-compat fallback in frontend
+- [x] Streaming expansion panel now shows full tool args and results (not just names)
+- [x] Add `CONTEXTUAL_DISCLAIMERS` map (6 tool-specific disclaimers) to `VerificationService`
+- [x] Add `getContextualDisclaimers()` method; include `disclaimers` in both `chat()` and `chatStream()` responses
+- [x] Add `disclaimers?: string[]` to `AiAgentResponse` interface
+- [x] Frontend renders contextual disclaimers with amber left-border styling
+- [x] Refactor `assessConfidence()` from positional args to object params with 6 signals (base 0.95)
+- [x] Integrate hallucination score, tool errors, and data staleness into confidence formula
+- [x] Add `computeDataAge()` private method to extract market data freshness
+- [x] Frontend shows color-coded confidence indicator (green/orange/red) with labels
+- [x] Update verification service tests (13 assessConfidence + 6 getContextualDisclaimers tests)
+- [x] Update eval spec for new `assessConfidence()` signature

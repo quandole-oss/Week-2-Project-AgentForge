@@ -32,6 +32,7 @@ interface ChatMessage {
   traceId?: string;
   toolCalls?: AiAgentResponse['toolCalls'];
   confidence?: number;
+  disclaimers?: string[];
   sources?: AiAgentResponse['sources'];
   usage?: AiAgentUsage;
   durationMs?: number;
@@ -152,8 +153,37 @@ interface ChatMessage {
 
       .confidence {
         font-size: 0.8rem;
-        opacity: 0.7;
         margin-top: 0.25rem;
+        border-left: 3px solid;
+        padding: 0.25rem 0.5rem;
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+
+      .confidence-label {
+        font-weight: 500;
+      }
+
+      .confidence-value {
+        opacity: 0.7;
+      }
+
+      .contextual-disclaimers {
+        margin-top: 0.5rem;
+        border-left: 3px solid #f59e0b;
+        padding: 0.25rem 0.5rem;
+      }
+
+      .contextual-disclaimer {
+        font-size: 0.8rem;
+        font-style: italic;
+        opacity: 0.8;
+        margin-bottom: 0.25rem;
+      }
+
+      .contextual-disclaimer:last-child {
+        margin-bottom: 0;
       }
 
       .sources {
@@ -222,7 +252,10 @@ interface ChatMessage {
 
       :host-context(.theme-dark) .confidence {
         color: rgba(255, 255, 255, 0.85);
-        opacity: 1;
+      }
+
+      :host-context(.theme-dark) .contextual-disclaimers {
+        color: rgba(255, 255, 255, 0.85);
       }
 
       :host-context(.theme-dark) .sources {
@@ -377,9 +410,18 @@ interface ChatMessage {
               </div>
             }
 
+            @if (msg.disclaimers?.length) {
+              <div class="contextual-disclaimers">
+                @for (d of msg.disclaimers; track d) {
+                  <div class="contextual-disclaimer">{{ d }}</div>
+                }
+              </div>
+            }
+
             @if (msg.confidence !== undefined) {
-              <div class="confidence">
-                Confidence: {{ (msg.confidence * 100).toFixed(0) }}%
+              <div class="confidence" [style.border-left-color]="getConfidenceColor(msg.confidence)">
+                <span class="confidence-label">{{ getConfidenceLabel(msg.confidence) }}</span>
+                <span class="confidence-value">{{ (msg.confidence * 100).toFixed(0) }}%</span>
               </div>
             }
 
@@ -571,7 +613,7 @@ export class GfAiAgentPageComponent implements OnInit, OnDestroy {
       })
       .pipe(takeUntil(this.unsubscribeSubject))
       .subscribe({
-        next: ({ text, traceId, conversationId: respConvId, done, toolNames }) => {
+        next: ({ text, traceId, conversationId: respConvId, done, toolCalls, confidence, disclaimers }) => {
           this.ngZone.run(() => {
             assistantMessage.content = text;
             assistantMessage.contentHtml =
@@ -585,12 +627,14 @@ export class GfAiAgentPageComponent implements OnInit, OnDestroy {
               if (respConvId && !this.conversationId) {
                 this.conversationId = respConvId;
               }
-              if (toolNames?.length) {
-                assistantMessage.toolCalls = toolNames.map((toolName) => ({
-                  toolName,
-                  args: {},
-                  result: undefined
-                }));
+              if (toolCalls?.length) {
+                assistantMessage.toolCalls = toolCalls;
+              }
+              if (confidence !== undefined) {
+                assistantMessage.confidence = confidence;
+              }
+              if (disclaimers?.length) {
+                assistantMessage.disclaimers = disclaimers;
               }
               this.isLoading = false;
             }
@@ -656,6 +700,30 @@ export class GfAiAgentPageComponent implements OnInit, OnDestroy {
           // Silently fail
         }
       });
+  }
+
+  public getConfidenceColor(confidence: number): string {
+    if (confidence >= 0.85) {
+      return '#4caf50';
+    }
+
+    if (confidence >= 0.65) {
+      return '#ff9800';
+    }
+
+    return '#f44336';
+  }
+
+  public getConfidenceLabel(confidence: number): string {
+    if (confidence >= 0.85) {
+      return 'High confidence';
+    }
+
+    if (confidence >= 0.65) {
+      return 'Moderate confidence';
+    }
+
+    return 'Low confidence';
   }
 
   public ngOnDestroy() {

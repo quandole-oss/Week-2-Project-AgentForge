@@ -18,8 +18,9 @@ AgentForge is an AI-powered financial portfolio assistant built inside Ghostfoli
 │    ┌──────────────────────────────────────────┐     │
 │    │  GfAiAgentPageComponent                  │     │
 │    │  - Message list with markdown rendering  │     │
-│    │  - Collapsible tool call details         │     │
-│    │  - Disclaimer always visible             │     │
+│    │  - Collapsible tool call details (full)   │     │
+│    │  - Contextual + static disclaimers       │     │
+│    │  - Color-coded confidence indicator      │     │
 │    │  - Conversation history management       │     │
 │    └──────────────────────────────────────────┘     │
 └─────────────────────┬───────────────────────────────┘
@@ -66,9 +67,10 @@ AgentForge is an AI-powered financial portfolio assistant built inside Ghostfoli
 │  ┌──────────────────────────────────────────────┐   │
 │  │  Verification Layer                          │   │
 │  │  - Disclaimer enforcement (regex + inject)   │   │
+│  │  - Contextual disclaimers (per-tool)         │   │
 │  │  - Numerical accuracy verification           │   │
 │  │  - Hallucination detection                   │   │
-│  │  - Confidence scoring (0-1)                  │   │
+│  │  - Multi-signal confidence scoring (0-1)     │   │
 │  └──────────────────────────────────────────────┘   │
 │                                                      │
 │  ┌──────────────────────────────────────────────┐   │
@@ -119,11 +121,13 @@ curl -X POST http://localhost:3333/api/v1/ai-agent/chat \
 
 1. **Disclaimer Enforcement**: Every response is checked for financial advice disclaimer via regex. If missing, it's auto-injected.
 
-2. **Numerical Accuracy**: Numbers in LLM response are extracted and compared against tool result numbers with configurable tolerance (default 0.01%).
+2. **Contextual Disclaimers**: Each tool maps to a domain-specific disclaimer (e.g., tax estimates mention FIFO simplification, market prices note potential 15-minute delay). Applicable disclaimers are selected per response based on which tools were called.
 
-3. **Hallucination Detection**: Factual claims (sentences with numbers) are cross-referenced against tool outputs. Score > 5% triggers warning, > 10% triggers regeneration.
+3. **Numerical Accuracy**: Numbers in LLM response are extracted and compared against tool result numbers with configurable tolerance (default 0.01%).
 
-4. **Confidence Scoring**: 0-1 score based on tool call count, error state, and response length. Scores < 0.7 trigger uncertainty language.
+4. **Hallucination Detection**: Factual claims (sentences with numbers) are cross-referenced against tool outputs. Score > 5% triggers warning, > 10% triggers regeneration.
+
+5. **Confidence Scoring**: 0-1 score based on 6 signals: tool call count, verification errors, response length, hallucination score, tool errors, and data staleness (market data age). Base confidence is 0.95 with granular penalties. Scores < 0.7 trigger uncertainty language. Frontend displays color-coded labels (green/orange/red).
 
 ## Testing
 
