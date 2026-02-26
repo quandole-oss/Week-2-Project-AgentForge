@@ -77,6 +77,7 @@ AgentForge is an AI-powered financial portfolio assistant built inside Ghostfoli
 │  │  Telemetry                                   │   │
 │  │  - Structured JSON logs                      │   │
 │  │  - Trace IDs, duration, tool calls, tokens   │   │
+│  │  - LLM vs tool latency isolation             │   │
 │  └──────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────┘
 ```
@@ -125,9 +126,11 @@ curl -X POST http://localhost:3333/api/v1/ai-agent/chat \
 
 3. **Numerical Accuracy**: Numbers in LLM response are extracted and compared against tool result numbers with configurable tolerance (default 0.01%).
 
-4. **Hallucination Detection**: Factual claims (sentences with numbers) are cross-referenced against tool outputs. Score > 5% triggers warning, > 10% triggers regeneration.
+4. **Hallucination Detection**: Factual claims (sentences with numbers) are cross-referenced against tool outputs. Score > 3% triggers warning, > 5% triggers regeneration (aligned with < 5% hallucination rate target).
 
 5. **Confidence Scoring**: 0-1 score based on 6 signals: tool call count, verification errors, response length, hallucination score, tool errors, and data staleness (market data age). Base confidence is 0.95 with granular penalties. Scores < 0.7 trigger uncertainty language. Frontend displays color-coded labels (green/orange/red).
+
+6. **LLM Latency Isolation**: Pure LLM inference time is measured separately from tool execution time by timing `generateText()`/`streamText()` calls and subtracting tool durations. Reported as `llmLatencyMs` in telemetry and as `llm-latency-ms` score in Langfuse.
 
 ## Prompt design and verification plan
 
@@ -158,6 +161,7 @@ npx jest --config apps/api/jest.config.ts --testPathPatterns='ai-agent.*spec'
 - 59 unit tests (portfolio summary, transaction analyzer, compliance checker, verification service)
 - 25 integration/eval tests (verification, hallucination detection, eval case validation)
 - 69 eval cases (portfolio, transactions, market, tax, compliance, allocation, multi-tool, adversarial, edge-case)
+- Performance target assertions (6 metrics: pass rate, hallucination rate, verification accuracy, tool success rate, single-tool latency, multi-step latency)
 
 ## File Structure
 
@@ -186,8 +190,9 @@ apps/api/src/app/endpoints/ai-agent/
 ├── telemetry/
 │   └── telemetry.service.ts
 └── __tests__/
-    ├── eval-cases.ts           # 69 eval test cases
-    └── ai-agent.eval.spec.ts   # Integration tests
+    ├── eval-cases.ts               # 69 eval test cases
+    ├── ai-agent.eval.spec.ts       # Integration tests
+    └── performance-targets.spec.ts # Performance target assertions (6 metrics)
 
 libs/common/src/lib/
 ├── config.ts                   # + PROPERTY_API_KEY_ANTHROPIC

@@ -116,3 +116,17 @@
 - [x] Add UX directives: lead with insights, progressive disclosure, no capability menus
 - [x] Keep plain-markdown output (no JSON); disclaimers remain server-side via VerificationService
 - [x] Document prompt design and verification plan in `docs/ai-agent.md`
+
+## Phase 15: Performance Target Compliance & Observability Gaps
+- [x] Add `performance-targets.spec.ts` with automated assertions for all 6 metrics:
+  - [x] Eval suite pass rate > 80%
+  - [x] Hallucination rate < 5%
+  - [x] Verification accuracy > 90%
+  - [x] Tool success rate > 95%
+  - [x] End-to-end latency (single tool) < 5s
+  - [x] Multi-step latency (3+ tools) < 15s
+- [x] Tighten hallucination detector thresholds to match < 5% target (shouldRegenerate > 0.05, shouldWarn > 0.03)
+- [x] Update hallucination detector tests for new thresholds
+- [x] Add LLM vs tool latency isolation (`llmLatencyMs`) in `ai-agent.service.ts`
+- [x] Add `llmLatencyMs` to `AiAgentTelemetryEntry` interface
+- [x] Report `llm-latency-ms` to Langfuse as a separate score
