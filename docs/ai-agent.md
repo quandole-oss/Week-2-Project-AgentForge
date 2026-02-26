@@ -129,6 +129,24 @@ curl -X POST http://localhost:3333/api/v1/ai-agent/chat \
 
 5. **Confidence Scoring**: 0-1 score based on 6 signals: tool call count, verification errors, response length, hallucination score, tool errors, and data staleness (market data age). Base confidence is 0.95 with granular penalties. Scores < 0.7 trigger uncertainty language. Frontend displays color-coded labels (green/orange/red).
 
+## Prompt design and verification plan
+
+The system prompt is designed to work with the **current pipeline**: the model returns **plain markdown** only. The API does not expect or parse JSON from the assistant.
+
+**Intent-aware behavior (in-prompt):** The model is instructed to classify user intent and respond accordingly:
+
+| Intent | Description | Model behavior |
+|--------|-------------|----------------|
+| **DATA_RETRIEVAL** | Facts, balances, performance | Answer directly; no in-text disclaimer required (system injects). |
+| **EDUCATION_ANALYSIS** | Explanations, risk, scenarios | Provide analysis; may add one line that the analysis is educational. |
+| **ADVICE_PREDICTION** | Recommendations, predictions, “what should I do?” | Refuse; start with “I cannot provide personalized financial advice…” and pivot to an objective analysis (e.g. allocation, tax impact). |
+
+**Disclaimer handling:** The backend always enforces disclaimers via `VerificationService.enforceDisclaimer()` (regex check + append if missing) and attaches contextual disclaimers per tool. The prompt tells the model when to use light vs strict *tone* (e.g. refuse + pivot for advice); the actual disclaimer text and per-tool caveats are applied server-side.
+
+**UX directives in prompt:** Lead with insights when context exists; progressive disclosure (one strong analysis at a time for open-ended questions, multiple tools when the user asks for a full review); no capability menus.
+
+Future work could introduce structured output (e.g. intent + suggested UI trigger) if the API and frontend are extended to parse and render it.
+
 ## Testing
 
 ```bash

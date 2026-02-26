@@ -110,3 +110,9 @@
 - [x] Frontend shows color-coded confidence indicator (green/orange/red) with labels
 - [x] Update verification service tests (13 assessConfidence + 6 getContextualDisclaimers tests)
 - [x] Update eval spec for new `assessConfidence()` signature
+
+## Phase 14: Prompt and intent-aware behavior
+- [x] Revise system prompt for intent handling (DATA_RETRIEVAL / EDUCATION_ANALYSIS / ADVICE_PREDICTION)
+- [x] Add UX directives: lead with insights, progressive disclosure, no capability menus
+- [x] Keep plain-markdown output (no JSON); disclaimers remain server-side via VerificationService
+- [x] Document prompt design and verification plan in `docs/ai-agent.md`
