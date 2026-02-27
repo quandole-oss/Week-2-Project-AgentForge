@@ -126,9 +126,9 @@ curl -X POST http://localhost:3333/api/v1/ai-agent/chat \
 
 3. **Numerical Accuracy**: Numbers in LLM response are extracted and compared against tool result numbers with configurable tolerance (default 0.01%).
 
-4. **Hallucination Detection**: Factual claims (sentences with numbers) are cross-referenced against tool outputs. Score > 3% triggers warning, > 5% triggers regeneration (aligned with < 5% hallucination rate target).
+4. **Hallucination Detection**: Factual claims (sentences with numbers) are cross-referenced against tool outputs. Sentence splitting uses decimal-aware logic (placeholder-based) so that numbers like `$115,851.63` and `37.09%` are not broken across sentence boundaries. Score > 3% triggers warning, > 5% triggers regeneration (aligned with < 5% hallucination rate target).
 
-5. **Confidence Scoring**: 0-1 score based on 6 signals: tool call count, verification errors, response length, hallucination score, tool errors, and data staleness (market data age). Base confidence is 0.95 with granular penalties. Scores < 0.7 trigger uncertainty language. Frontend displays color-coded labels (green/orange/red).
+5. **Confidence Scoring**: 0-1 score based on 6 signals: tool call count, verification errors, response length, hallucination score, tool errors, and data staleness (market data age). Base confidence is 0.95 with granular penalties. Hallucination penalty is capped at 0.15 to prevent residual false positives from dropping confidence below 0.7. Scores < 0.7 trigger uncertainty language. Frontend displays color-coded labels (green/orange/red).
 
 6. **LLM Latency Isolation**: Pure LLM inference time is measured separately from tool execution time by timing `generateText()`/`streamText()` calls and subtracting tool durations. Reported as `llmLatencyMs` in telemetry and as `llm-latency-ms` score in Langfuse.
 

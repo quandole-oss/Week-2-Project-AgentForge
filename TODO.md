@@ -139,3 +139,10 @@
 - [x] Update `market_context` tool description (both `chat` and `chatStream`) to mention crypto support
 - [x] Add 5 crypto eval cases (`crypto-001` through `crypto-005`)
 - [x] Add 9 symbol resolution unit tests (`resolveSymbol` + integration tests)
+
+## Phase 17: False-Positive Confidence Fix
+- [x] Fix decimal-aware sentence splitting in `extractFactualClaims()` — protect `digit.digit` patterns (e.g. `$115,851.63`, `37.09%`) from being split as sentence boundaries
+- [x] Cap hallucination penalty in `assessConfidence()` at 0.15 to prevent residual false positives from dropping confidence below 0.7
+- [x] Add hallucination-detector tests for decimal dollar amounts and percentages
+- [x] Update verification.service tests for capped penalty expectations
+- [x] Update performance-targets fabricated-response test data to avoid substring coincidence

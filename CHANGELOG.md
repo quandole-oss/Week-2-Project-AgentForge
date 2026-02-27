@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## AgentForge AI Agent - 2026-02-26
 
+### Fixed
+
+- Hallucination detector no longer splits sentences on decimal points in numbers (e.g., `$115,851.63` and `37.09%` stay intact as single claims)
+- Confidence score no longer tanks to 60% from residual false-positive hallucination scores — hallucination penalty is now capped at 0.15
+
 ### Added
 
 - Tool transparency: streaming responses now send full tool call data (args, results, timing) via `__META__` payload instead of tool names only
